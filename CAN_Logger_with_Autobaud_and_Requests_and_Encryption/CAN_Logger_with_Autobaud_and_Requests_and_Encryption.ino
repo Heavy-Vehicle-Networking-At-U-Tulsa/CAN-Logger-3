@@ -103,6 +103,9 @@ String commandString;
 /*  code to process time sync messages from the serial port   */
 char timeString[100];
 
+// Radomize the seed based on noise from analog pin 21. Used for random key generation later
+randomSeed(analogRead(21));
+
 // define a counter to reset after each second is counted.
 elapsedMicros microsecondsPerSecond;
 
@@ -750,8 +753,8 @@ void myLongPressFunction(){
 
 void setup(void) {
   commandString.reserve(256);
-  //setup encryption values  Replace key with real key :)
-  for (i = 0; i < sizeof(aeskey); i++)  aeskey[i] = 0x70;
+  //setup encryption values  Replace key with real key 
+  for (i = 0; i < sizeof(aeskey); i++)  aeskey[i] = random(0, 255);
   unsigned char keysched[4*44];
   mmcau_aes_set_key(aeskey, 128, keysched);
   
