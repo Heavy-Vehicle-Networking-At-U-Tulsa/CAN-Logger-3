@@ -55,6 +55,7 @@
 #include <EEPROM.h>
 #include <error.h>
 #include <FastCRC.h>
+#include <CryptoAccel.h>
 
 //Get access to a hardware based CRC32 
 FastCRC32 CRC32;
@@ -104,7 +105,9 @@ String commandString;
 char timeString[100];
 
 // Radomize the seed based on noise from analog pin 21. Used for random key generation later
-randomSeed(analogRead(21));
+//randomSeed(analogRead(21));
+byte aeskey[32];
+uint8_t keysched[4*44];
 
 // define a counter to reset after each second is counted.
 elapsedMicros microsecondsPerSecond;
@@ -352,13 +355,13 @@ void check_buffer(){
       byte outAESblock[16];
       for (int k = 0; k < (sizeof(BUFFER_SIZE) / 16); k++){
         current_position = k * 16;
-        for (i = 0; i < sizeof(inAESblock); i++){
+        for (int i = 0; i < sizeof(inAESblock); i++){
           inAESblock[i] = data_buffer[current_position];
           current_position++;
         }
         mmcau_aes_encrypt(inAESblock, keysched, 10, outAESblock);
         current_position = k * 16;
-        for (i = 0; i < sizeof(outAESblock); i++){
+        for (int i = 0; i < sizeof(outAESblock); i++){
           data_buffer[current_position]=outAESblock[i];
           current_position++;
         }
@@ -750,24 +753,24 @@ void myLongPressFunction(){
   digitalWrite(RED_LED,RED_LED_state);
 }
 
-void rsa_encrypt(double public_key_e, double public_key_n, byte data, byte eData){
+void rsa_encrypt(int public_key_e, int public_key_n, byte data[], byte eData[]){
   for (int i = 0; i < sizeof(data); i++){
-    eData[i] = pow(data[i], public_key_e) % public_key_n 
+    eData[i] = int(pow(int(data[i]), public_key_e)) % public_key_n;
   }
 }
+
 
 
 void setup(void) {
   commandString.reserve(256);
   //setup encryption values  Replace key with real key 
-  byte aeskey[32];
-  for (i = 0; i < sizeof(aeskey); i++)  aeskey[i] = random(0, 255);
+  
+  for (int i = 0; i < sizeof(aeskey); i++)  aeskey[i] = random(0, 255);
   byte eSymKey[sizeof(aeskey)];
-  double server_public_key[2] = [3, 3127]; // [e,n]
-  double server_public_e = server_public_key[0];
-  double server_public_n = server_public_key[1];
+  int server_public_key[2] = {3, 3127}; // [e,n]
+  int server_public_e = server_public_key[0];
+  int server_public_n = server_public_key[1];
   rsa_encrypt(server_public_e, server_public_n, aeskey, eSymKey);
-  unsigned char keysched[4*44];
   mmcau_aes_set_key(aeskey, 128, keysched);
   
   //setup pin modes for the transeivers
@@ -875,7 +878,7 @@ void setup(void) {
   baudFile.open("baudRate.txt", O_RDWR | O_CREAT | O_AT_END);
   sprintf(timeString,"%04d-%02d-%02dT%02d:%02d:%02d,%d,%d",year(),month(),day(),hour(),minute(),second(),Can0.baud_rate,Can1.baud_rate);
   baudFile.println(timeString);
-  baudFile.println(eSymKey);
+  //baudFile.println(eSymKey);
   baudFile.close();
   Serial.println("Done.");
 
