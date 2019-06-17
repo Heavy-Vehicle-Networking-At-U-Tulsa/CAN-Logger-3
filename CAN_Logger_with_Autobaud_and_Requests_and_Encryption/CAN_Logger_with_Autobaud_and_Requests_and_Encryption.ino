@@ -750,11 +750,23 @@ void myLongPressFunction(){
   digitalWrite(RED_LED,RED_LED_state);
 }
 
+void rsa_encrypt(double public_key_e, double public_key_n, byte data, byte eData){
+  for (int i = 0; i < sizeof(data); i++){
+    eData[i] = pow(data[i], public_key_e) % public_key_n 
+  }
+}
+
 
 void setup(void) {
   commandString.reserve(256);
   //setup encryption values  Replace key with real key 
+  byte aeskey[32];
   for (i = 0; i < sizeof(aeskey); i++)  aeskey[i] = random(0, 255);
+  byte eSymKey[sizeof(aeskey)];
+  double server_public_key[2] = [3, 3127]; // [e,n]
+  double server_public_e = server_public_key[0];
+  double server_public_n = server_public_key[1];
+  rsa_encrypt(server_public_e, server_public_n, aeskey, eSymKey);
   unsigned char keysched[4*44];
   mmcau_aes_set_key(aeskey, 128, keysched);
   
@@ -863,6 +875,7 @@ void setup(void) {
   baudFile.open("baudRate.txt", O_RDWR | O_CREAT | O_AT_END);
   sprintf(timeString,"%04d-%02d-%02dT%02d:%02d:%02d,%d,%d",year(),month(),day(),hour(),minute(),second(),Can0.baud_rate,Can1.baud_rate);
   baudFile.println(timeString);
+  baudFile.println(eSymKey);
   baudFile.close();
   Serial.println("Done.");
 
