@@ -1,8 +1,8 @@
 /*
- * NMFTA CAN Logger 2 Project
+ * NMFTA CAN Logger 3 Project   
  * 
- * Arduino Sketch for the CAN Logger 2 to record up to 3 CAN channels using
- * a Teensy 3.6. See https://github.com/Heavy-Vehicle-Networking-At-U-Tulsa/CAN-Logger-2
+ * Arduino Sketch for the CAN Logger 3 to record up to 3 CAN channels using
+ * a Teensy 3.6. See https://github.com/Heavy-Vehicle-Networking-At-U-Tulsa/CAN-Logger-3
  * for more details.
  * 
  * Written By Dr. Jeremy S. Daily
