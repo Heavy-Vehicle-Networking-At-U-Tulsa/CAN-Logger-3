@@ -4,7 +4,9 @@ Uses 512 Byte block examples
 */
 #include "CryptoAccel.h" //Makes it arduino compatible
 #include "cau_api.h"
+
 #define data_size 512
+#define AES_ROUNDS 10
 unsigned int i, t, errs;
 unsigned char mdstate[16], data[data_size], cipher_text[data_size], clear_text[data_size];
 unsigned int shastate[8];
@@ -25,7 +27,7 @@ void aes_cbc_encrypt(const unsigned char *data, unsigned char *cipher_text){
     for (uint8_t i = 0; i < 16; i++){
       in[i] = data[j+i] ^ out[i];
     }
-    cau_aes_encrypt (in, keysched, 10, out); // # 16-byte block
+    cau_aes_encrypt (in, keysched, AES_ROUNDS, out); // # 16-byte block
     memcpy(&cipher_text[j],out,16);
   }
 }
@@ -34,7 +36,7 @@ void aes_cbc_decrypt(unsigned char *clear_text, const unsigned char *cipher_text
   //Data length should be a multiple of 16 bytes
   // Need to initialize "iv" with the initialization vector
   for (uint32_t j=0; j < data_size; j+=16){
-    cau_aes_decrypt (&cipher_text[j], keysched, 10, out); 
+    cau_aes_decrypt (&cipher_text[j], keysched, AES_ROUNDS, out); 
     for (uint8_t i = 0; i < 16; i++){
       clear_text[j+i] = out[i] ^ iv[i];
     }
@@ -71,11 +73,11 @@ void loop() {
   Serial.print("aes set key microsec "); Serial.println(t);
   //printf("aes set key  %u us\n",t);
   t = micros();
-  cau_aes_encrypt (in, keysched, 10, cipher_text); // # 16-byte block
+  cau_aes_encrypt (in, keysched, AES_ROUNDS, cipher_text); // # 16-byte block
   t = micros() - t;
   sprintf(str, "aes %d bytes %u us  KBs  ", sizeof(in), t); Serial.print(str);
   Serial.println(1000.*sizeof(in) / t);
-  cau_aes_decrypt (cipher_text, keysched, 10, iv); //  decrypt test
+  cau_aes_decrypt (cipher_text, keysched, AES_ROUNDS, iv); //  decrypt test
   errs = 0;
   for (i = 0; i < 16; i++) if (in[i] != iv[i]) errs++;
   Serial.print("aes errs "); Serial.println(errs);

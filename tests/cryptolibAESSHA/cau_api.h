@@ -5,9 +5,7 @@
  *  Define FREESCALE_MMCAU if mmCAU coprocessor is used --EABI for Kinetis ARM Cortex-Mx
  *  12/19/2013
  */
-#define FREESCALE_MMCAU 1
 
-#if FREESCALE_MMCAU
 #define cau_aes_set_key               mmcau_aes_set_key
 #define cau_aes_encrypt               mmcau_aes_encrypt
 #define cau_aes_decrypt               mmcau_aes_decrypt
@@ -26,7 +24,6 @@
 #define cau_sha256_hash_n             mmcau_sha256_hash_n
 #define cau_sha256_update             mmcau_sha256_update
 #define cau_sha256_hash               mmcau_sha256_hash
-#endif
 
 //******************************************************************************
 // 
