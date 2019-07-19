@@ -1,8 +1,8 @@
 /*
- * NMFTA CAN Logger 2 Project
+ * NMFTA CAN Logger 3 Project   
  * 
- * Arduino Sketch for the CAN Logger 2 to record up to 3 CAN channels using
- * a Teensy 3.6. See https://github.com/Heavy-Vehicle-Networking-At-U-Tulsa/CAN-Logger-2
+ * Arduino Sketch for the CAN Logger 3 to record up to 3 CAN channels using
+ * a Teensy 3.6. See https://github.com/Heavy-Vehicle-Networking-At-U-Tulsa/CAN-Logger-3
  * for more details.
  * 
  * Written By Dr. Jeremy S. Daily
@@ -48,20 +48,19 @@
 
 //included libraries 
 #include <SdFs.h>
-#include <mcp_can.h>
+//#include <mcp_can.h>
 #include <FlexCAN.h>
 #include <OneButton.h>
 #include <TimeLib.h>
 #include <EEPROM.h>
 #include <error.h>
 #include <FastCRC.h>
-#include <CryptoAccel.h>
 
 //Get access to a hardware based CRC32 
 FastCRC32 CRC32;
 
 // EEPROM memory addresses for creating file names
-// The Address 0 and 1 are used for baud rates by the fork FlexCAN submodule -- see src/FlexCAN.h
+// The Address 0 and 1 are used for baud rates
 #define EEPROM_DEVICE_ID_ADDR  4 // 5, 6, 7=00
 #define EEPROM_FILE_ID_ADDR    8 // 9, 10, 11 ==00
 #define EEPROM_BRAND_NAME_ADDR 12 //13 and 14 ==00
@@ -89,10 +88,10 @@ CAN_message_t rxmsg,txmsg;
 
 // Define CAN TXRX Transmission Silent pins
 // See the CAN Logger 2 Schematic for the source pins
-#define SILENT_0   39
-#define SILENT_1   38
-#define SILENT_2   37
-#define CAN_SWITCH 2
+#define SILENT_0   42
+#define SILENT_1   41
+#define SILENT_2   40
+//#define CAN_SWITCH 2
 #define BUTTON_PIN 20
 #define POWER_PIN  21
 
@@ -103,11 +102,7 @@ String commandString;
 
 /*  code to process time sync messages from the serial port   */
 char timeString[100];
-
-// Radomize the seed based on noise from analog pin 21. Used for random key generation later
-//randomSeed(analogRead(21));
-byte aeskey[32];
-uint8_t keysched[4*44];
+char iv_string[16];
 
 // define a counter to reset after each second is counted.
 elapsedMicros microsecondsPerSecond;
@@ -122,9 +117,9 @@ char brand_name[3];
   
   
 // Setup the MCP2515 controller
-// See the CAN Logger 2 Schematic for the source pins
-#define CS_CAN 15
-MCP_CAN Can2(CS_CAN); 
+// Set CS to pin 15, according to schematics
+//#define CS_CAN 15
+//MCP_CAN Can2(CS_CAN); 
 //variables for the CAN Message
 uint32_t rxId;
 uint8_t len;
@@ -252,7 +247,7 @@ elapsedMillis lastCAN1messageTimer;
 elapsedMillis lastCAN2messageTimer;
 uint32_t ErrorCount0 = 0;
 uint32_t ErrorCount1 = 0;
-uint32_t ErrorCount2 = 0;
+//uint32_t ErrorCount2 = 0;
 
 // Should we stream the CAN frame to the serial port? Serial 
 // can't keep up with heavy CAN bus loads, so this is default to false.
@@ -262,8 +257,70 @@ bool stream = false;
 // on user input.
 bool recording = true;
 
-// Track the state of the user's desire to encrypt.
-bool encrypt = true;
+
+// random RNG
+#define REPS 50
+
+#define RNG_CR_GO_MASK                           0x1u
+#define RNG_CR_HA_MASK                           0x2u
+#define RNG_CR_INTM_MASK                         0x4u
+#define RNG_CR_CLRI_MASK                         0x8u
+#define RNG_CR_SLP_MASK                          0x10u
+#define RNG_SR_OREG_LVL_MASK                     0xFF00u
+#define RNG_SR_OREG_LVL_SHIFT                    8
+#define RNG_SR_OREG_LVL(x)                       (((uint32_t)(((uint32_t)(x))<<RNG_SR_OREG_LVL_SHIFT))&RNG_SR_OREG_LVL_MASK)
+#define SIM_SCGC6_RNGA    ((uint32_t)0x00000200)
+
+uint32_t random_number;
+uint8_t iv_and_key[32];
+
+uint32_t trng(){
+    RNG_CR |= RNG_CR_GO_MASK;
+    while((RNG_SR & RNG_SR_OREG_LVL(0xF)) == 0); // wait
+    return RNG_OR;
+}
+/* K66F  CAU tests   SHA256  AES-CBC
+crypto assist co-processor
+*/
+#include "CryptoAccel.h" //Makes it arduino compatible
+#include "cau_api.h"
+    
+unsigned char cipher_text[512];
+unsigned char aeskey[16], keysched[4 * 44], in[16], out[16], init_vector[16];
+
+//Generate ranndom iv and key function, 32 bytes number
+void iv_key_RNG(){
+    
+    for (int m =0;m<8;m++){
+    SIM_SCGC6 |= SIM_SCGC6_RNGA; // enable RNG
+    RNG_CR &= ~RNG_CR_SLP_MASK;
+    RNG_CR |= RNG_CR_HA_MASK;  // high assurance, not needed
+
+    //Random number, 4 byte long
+    for (int l =0;l<REPS;l++){
+      random_number = trng();
+      }
+    iv_and_key[4*m] = (random_number & 0xFF000000) >> 24;
+    iv_and_key[4*m+1] = (random_number & 0x00FF0000) >> 16;
+    iv_and_key[4*m+2] = (random_number & 0x0000FF00) >> 8;
+    iv_and_key[4*m+3] = (random_number & 0x000000FF);
+    }
+}
+
+//AES CBC funtion
+void aes_cbc_encrypt(const unsigned char *data, unsigned char *cipher_text){
+  //Data length should be a multiple of 16 bytes
+  // Need to initialize out with the initialization vector
+  for (uint32_t j=0; j < 512; j+=16){
+    for (uint8_t i = 0; i < 16; i++){
+      in[i] = data[j+i] ^ out[i];
+    }
+    cau_aes_encrypt (in, keysched, 10, out); // # 16-byte block
+    memcpy(&cipher_text[j],out,16);
+  }
+}
+
+
 /*
  * The load_buffer() function maps the received CAN message into
  * the positions in the buffer to store. Each buffer is 512 bytes.
@@ -317,7 +374,6 @@ void load_buffer(){
 void check_buffer(){
   //Check to see if there is anymore room in the buffer
   if (current_position >= BUFFER_POSITION_LIMIT){ //max number of messages
-       
     //Create a file if it is not open yet
     if (!file_open) {
       open_binFile();
@@ -338,11 +394,13 @@ void check_buffer(){
     
     data_buffer[491] = Can0.readREC();
     data_buffer[492] = Can1.readREC();
-    data_buffer[493] = uint8_t(Can2.errorCountRX());
+    //data_buffer[493] = uint8_t(Can2.errorCountRX());
+    data_buffer[493] = 0;
     
     data_buffer[494] = Can0.readTEC();
     data_buffer[495] = Can1.readTEC();
-    data_buffer[496] = uint8_t(Can2.errorCountTX());
+    //data_buffer[496] = uint8_t(Can2.errorCountTX());
+    data_buffer[496] = 0;
     
     // Write the filename to each line in the 512 byte block
     memcpy(&data_buffer[497], &current_file_name, 8);
@@ -350,25 +408,11 @@ void check_buffer(){
     uint32_t checksum = CRC32.crc32(data_buffer, 508);
     memcpy(&data_buffer[508], &checksum, 4);
 
-    if (encrypt){
-      byte inAESblock[16];
-      byte outAESblock[16];
-      for (int k = 0; k < (sizeof(BUFFER_SIZE) / 16); k++){
-        current_position = k * 16;
-        for (int i = 0; i < sizeof(inAESblock); i++){
-          inAESblock[i] = data_buffer[current_position];
-          current_position++;
-        }
-        mmcau_aes_encrypt(inAESblock, keysched, 10, outAESblock);
-        current_position = k * 16;
-        for (int i = 0; i < sizeof(outAESblock); i++){
-          data_buffer[current_position]=outAESblock[i];
-          current_position++;
-        }
-      }
-    }
+    //Encrypt data_buffer with AES CBC
     
-    if (BUFFER_SIZE != binFile.write(data_buffer, BUFFER_SIZE)) {
+    aes_cbc_encrypt(data_buffer,cipher_text);//Encrypt 512-byte buffer 
+    
+    if (BUFFER_SIZE != binFile.write(cipher_text, BUFFER_SIZE)) {
       Serial.println("write failed");
       sdErrorFlash(); 
     }
@@ -387,8 +431,7 @@ void check_buffer(){
 }
 
 void print_hex(){
-  turn_recording_off();
-  turn_streaming_off();
+
   char line[512];
   if (!binFile.isOpen()) close_binFile();
   if (sd.exists(current_file_name)){
@@ -402,7 +445,7 @@ void print_hex(){
       Serial.println();
     }
     binFile.close();
-    setup();
+
   }
   else
   {
@@ -501,7 +544,7 @@ void dateTime(uint16_t* FSdate, uint16_t* FStime) {
  * Routines for the Microchip MCP2515 CAN Controller on Can2
  * This third CAN channel is wired to the J1708 pins (F and G) found
  * on some newer PACCAR trucks.
- */
+ *
 void send_Can2_message(CAN_message_t &txmsg){
   if (TXTimer2 >= TX_MESSAGE_TIME){
     //Send message in format: ID, Standard (0) or Extended ID (1), message length, txmsg
@@ -512,7 +555,7 @@ void send_Can2_message(CAN_message_t &txmsg){
 }
 
 
-/*
+
  * Routines for the FlexCAN Controller on Can0 and Can1
  * Can0 is usually J1939
  */
@@ -617,7 +660,8 @@ void close_binFile(){
   memcpy(&data_buffer[508], &checksum, 4);
   
   //Write the last set of data
-  binFile.write(data_buffer, BUFFER_SIZE);
+  aes_cbc_encrypt(data_buffer,cipher_text);//Encrypt 512-byte buffer 
+  binFile.write(cipher_text, BUFFER_SIZE);
   binFile.close();
   
   EEPROM.put(EEPROM_FILE_ID_ADDR,current_file);
@@ -753,25 +797,9 @@ void myLongPressFunction(){
   digitalWrite(RED_LED,RED_LED_state);
 }
 
-void rsa_encrypt(int public_key_e, int public_key_n, byte data[], byte eData[]){
-  for (int i = 0; i < sizeof(data); i++){
-    eData[i] = int(pow(int(data[i]), public_key_e)) % public_key_n;
-  }
-}
-
-
 
 void setup(void) {
   commandString.reserve(256);
-  //setup encryption values  Replace key with real key 
-  
-  for (int i = 0; i < sizeof(aeskey); i++)  aeskey[i] = random(0, 255);
-  byte eSymKey[sizeof(aeskey)];
-  int server_public_key[2] = {3, 3127}; // [e,n]
-  int server_public_e = server_public_key[0];
-  int server_public_n = server_public_key[1];
-  rsa_encrypt(server_public_e, server_public_n, aeskey, eSymKey);
-  mmcau_aes_set_key(aeskey, 128, keysched);
   
   //setup pin modes for the transeivers
   pinMode(SILENT_0,OUTPUT);
@@ -784,8 +812,8 @@ void setup(void) {
   digitalWrite(SILENT_2,LOW);
 
   // Setup chip select pin for the MCP2515
-  pinMode(CS_CAN, OUTPUT);
-  digitalWrite(CS_CAN,HIGH);
+ // pinMode(CS_CAN, OUTPUT);
+  //digitalWrite(CS_CAN,HIGH);
   
   // put your setup code here, to run once:
   pinMode(GREEN_LED, OUTPUT);
@@ -812,9 +840,15 @@ void setup(void) {
   button.setClickTicks(500);
   
   // Select the CAN on J1939 Pins F and G
-  pinMode(CAN_SWITCH,OUTPUT);
-  digitalWrite(CAN_SWITCH,HIGH);
+  //pinMode(CAN_SWITCH,OUTPUT);
+  //digitalWrite(CAN_SWITCH,LOWstream on);
 
+  iv_key_RNG();
+  for (int i = 0; i < sizeof(aeskey); i++)  aeskey[i] = iv_and_key[16+i]; 
+  for (int i = 0; i < sizeof(init_vector); i++)  init_vector[i] = iv_and_key[i];
+  cau_aes_set_key(aeskey, 128, keysched);//Set key
+  memcpy(out,init_vector,16); //Load IV
+  
   Serial.println("Starting CAN logger.");
 
   Can0.setReportErrors(true);
@@ -835,9 +869,9 @@ void setup(void) {
   txmsg.len = 8;
 
   // Setup MCP CAN
-  if(Can2.begin(MCP_ANY, CAN_250KBPS, MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
-  else Serial.println("Error Initializing MCP2515...");
-  Can2.setMode(MCP_NORMAL);
+  //if(Can2.begin(MCP_ANY, CAN_250KBPS, MCP_16MHZ) == CAN_OK) Serial.println("MCP2515 Initialized Successfully!");
+  //else Serial.println("Error Initializing MCP2515...");
+  //Can2.setMode(MCP_NORMAL);
 
   // Setup timing services
   setSyncProvider(getTeensy3Time);
@@ -874,14 +908,6 @@ void setup(void) {
 
   sd.chvol();
 
-  Serial.print("Writing to baudRate.txt... ");
-  baudFile.open("baudRate.txt", O_RDWR | O_CREAT | O_AT_END);
-  sprintf(timeString,"%04d-%02d-%02dT%02d:%02d:%02d,%d,%d",year(),month(),day(),hour(),minute(),second(),Can0.baud_rate,Can1.baud_rate);
-  baudFile.println(timeString);
-  //baudFile.println(eSymKey);
-  baudFile.close();
-  Serial.println("Done.");
-
   Serial.print("Reading from EEPROM... ");
   EEPROM.get(EEPROM_DEVICE_ID_ADDR,logger_name);
   if (!isFileNameValid(logger_name)) strcpy(logger_name, "2__"); 
@@ -900,6 +926,36 @@ void setup(void) {
   //EEPROM.put(EEPROM_BRAND_NAME_ADDR,brand_name);
 
   Serial.println("Done.");
+
+
+  Serial.print("Writing to baudRate.txt... ");
+  baudFile.open("baudRate.txt", O_RDWR | O_CREAT | O_AT_END);
+  sprintf(timeString,"%04d-%02d-%02dT%02d:%02d:%02d,%d,%d",year(),month(),day(),hour(),minute(),second(),Can0.baud_rate,Can1.baud_rate);
+  baudFile.print(timeString);
+  baudFile.print(" TU");
+  baudFile.print(logger_name);
+  baudFile.print(current_file);
+  baudFile.print(" IV: ");
+  for (int n =0; n < sizeof(init_vector);n++){
+    baudFile.print(",0x");
+    if (init_vector[n] <16){
+      baudFile.print("0");
+    }
+    
+    baudFile.print(init_vector[n],HEX);
+  }
+  baudFile.print(" KEY:");
+    for (int n =0; n < sizeof(aeskey);n++){
+    baudFile.print(",0x");
+    if (aeskey[n] <16){
+      baudFile.print("0");
+    }
+     baudFile.print(aeskey[n],HEX);
+  }
+  baudFile.println("");
+  baudFile.close();
+  Serial.println("Done.");
+
   
   sprintf(file_name_prefix,"%s%s",brand_name,logger_name);
   Serial.print("The filename prefix is ");
@@ -916,7 +972,7 @@ void rx_message_routine(uint32_t RXCount){
   if ((rxmsg.id & CAN_ERR_FLAG) == CAN_ERR_FLAG){
     if (current_channel == 0) ErrorCount0++;
     else if (current_channel == 1) ErrorCount1++;
-    else if (current_channel == 2) ErrorCount2++;
+    //else if (current_channel == 2) ErrorCount2++;
     RED_LED_state = !RED_LED_state;                       
     digitalWrite(RED_LED,RED_LED_state);  
   }
@@ -930,7 +986,7 @@ void rx_message_routine(uint32_t RXCount){
       txmsg.buf[2] = 0x00; // Separation time in milliseconds
       if (current_channel == 0) send_Can0_message(txmsg);
       else if (current_channel == 1) send_Can1_message(txmsg);
-      else if (current_channel == 2) send_Can2_message(txmsg);
+      //else if (current_channel == 2) send_Can2_message(txmsg);
     }
   }
 }
@@ -947,14 +1003,14 @@ void loop(void) {
     current_channel = 1;
     rx_message_routine(RXCount1);
   }
-  if (Can2.readMsgBuf(&rxId, &ext_flag, &len, rxBuf) == CAN_OK){
+  /*if (Can2.readMsgBuf(&rxId, &ext_flag, &len, rxBuf) == CAN_OK){
     RXCount2++;
     memcpy(&rxmsg.buf, rxBuf, 8);
     rxmsg.len = uint8_t(len);
     rxmsg.id = uint32_t(rxId);
     current_channel = 2;
     rx_message_routine(RXCount2);
-  } 
+  } */
 
   // Close the file if messages stop showing up.
   if (RXTimer >= RX_TIME_OUT && file_open){
@@ -976,7 +1032,7 @@ void loop(void) {
         txmsg.buf[2] = (request_pgn[request_index] & 0xFF0000) >> 16; //These are in reverse byte order.
         send_Can0_message(txmsg);
         if (RXCount1 > 0) send_Can1_message(txmsg);
-        if (RXCount2 > 0) send_Can2_message(txmsg);
+        //if (RXCount2 > 0) send_Can2_message(txmsg);
         //Toggle LED light as messages are sent
         RED_LED_state = !RED_LED_state;                       
         digitalWrite(RED_LED,RED_LED_state);  
@@ -1015,7 +1071,7 @@ void loop(void) {
         txmsg.buf[2] = (iso_request[request_index] & 0xFF00) >> 8; //These are in reverse byte order.
         send_Can0_message(txmsg);
         if (RXCount1 > 0) send_Can1_message(txmsg); //only send something if the network is alive
-        if (RXCount2 > 0) send_Can2_message(txmsg); //only send something if the network is alive
+        //if (RXCount2 > 0) send_Can2_message(txmsg); //only send something if the network is alive
         //Toggle LED light as messages are sent
         RED_LED_state = !RED_LED_state;                       
         digitalWrite(RED_LED,RED_LED_state);  
@@ -1216,8 +1272,8 @@ void display_baud_rate(){
   Serial.println(Can0.baud_rate);
   Serial.print("Can1 bitrate is set to ");
   Serial.println(Can1.baud_rate);
-  Serial.print("Can2 bitrate is set to ");
-  Serial.println("250000"); // Change this once it is adjustable.
+  //Serial.print("Can2 bitrate is set to ");
+  //Serial.println("250000"); // Change this once it is adjustable.
 }
 
 void display_error_count(){
@@ -1225,8 +1281,8 @@ void display_error_count(){
   Serial.println(ErrorCount0);
   Serial.print("Can1 error count is ");
   Serial.println(ErrorCount1);
-  Serial.print("Can2 error count is ");
-  Serial.println(ErrorCount2); 
+  //Serial.print("Can2 error count is ");
+  //Serial.println(ErrorCount2); 
 }
 
 void list_files(){
