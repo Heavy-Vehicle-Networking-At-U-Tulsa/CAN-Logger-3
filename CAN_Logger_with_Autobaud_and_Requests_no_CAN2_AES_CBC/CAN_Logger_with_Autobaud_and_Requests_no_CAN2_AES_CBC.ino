@@ -1,4 +1,4 @@
-/*
+10/*
  * NMFTA CAN Logger 3 Project   
  * 
  * Arduino Sketch for the CAN Logger 3 to record up to 3 CAN channels using
@@ -58,6 +58,8 @@
 
 //Get access to a hardware based CRC32 
 FastCRC32 CRC32;
+
+#define AES_128_NROUNDS 10
 
 // EEPROM memory addresses for creating file names
 // The Address 0 and 1 are used for baud rates
@@ -315,7 +317,7 @@ void aes_cbc_encrypt(const unsigned char *data, unsigned char *cipher_text){
     for (uint8_t i = 0; i < 16; i++){
       in[i] = data[j+i] ^ out[i];
     }
-    cau_aes_encrypt (in, keysched, 10, out); // # 16-byte block
+    cau_aes_encrypt (in, keysched, AES_128_NROUNDS, out); // # 16-byte block
     memcpy(&cipher_text[j],out,16);
   }
 }
