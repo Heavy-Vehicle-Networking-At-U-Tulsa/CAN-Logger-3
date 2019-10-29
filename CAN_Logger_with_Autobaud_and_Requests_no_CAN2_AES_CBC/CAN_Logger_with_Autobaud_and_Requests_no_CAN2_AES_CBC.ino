@@ -1,4 +1,4 @@
-10/*
+/*
  * NMFTA CAN Logger 3 Project   
  * 
  * Arduino Sketch for the CAN Logger 3 to record up to 3 CAN channels using
