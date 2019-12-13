@@ -178,7 +178,8 @@ uint32_t TXCount2 = 0;
 elapsedMillis TXTimer0;
 elapsedMillis TXTimer1;
 elapsedMillis TXTimer2;
-
+unsigned int t;
+char str[16];
 // To use a button to send requests, we need to track it.
 #define NUM_REQUEST_PASSES 3
 #define REQUEST_TIMING 250 //milliseconds
@@ -586,6 +587,7 @@ void open_binFile(){
 }
 
 void close_binFile(){
+  t = micros();
   // Add integrity to the last line of the file.
   uint32_t checksum = CRC32.crc32(data_buffer, 508);
   memcpy(&data_buffer[508], &checksum, 4);
@@ -593,6 +595,9 @@ void close_binFile(){
   //Write the last set of data
   binFile.write(data_buffer, BUFFER_SIZE);
   binFile.close();
+  t = micros()-t;
+  sprintf(str, "Time to close file in %u us", t);
+  Serial.println(str);
   
   EEPROM.put(EEPROM_FILE_ID_ADDR,current_file);
   delay(100);

@@ -55,6 +55,7 @@
 #include <EEPROM.h>
 #include <error.h>
 #include <FastCRC.h>
+#include <sha256.h>
 
 //Get access to a hardware based CRC32 
 FastCRC32 CRC32;
@@ -108,7 +109,7 @@ char iv_string[16];
 
 // define a counter to reset after each second is counted.
 elapsedMicros microsecondsPerSecond;
-
+elapsedMicros t;
 // Get a uniqueName for the Logger File
 char logger_name[4];
 bool file_open;
@@ -259,6 +260,14 @@ bool stream = false;
 // on user input.
 bool recording = true;
 
+//SHA256
+unsigned int hash_counter;
+#define SHA256_BLOCK_SIZE 32            // SHA256 outputs a 32 byte digest
+BYTE hash_text[64];
+BYTE hash[SHA256_BLOCK_SIZE];
+BYTE before_closing_hash[512];
+boolean first_buffer_sent;
+Sha256* sha256Instance;
 
 // random RNG
 #define REPS 50
@@ -334,6 +343,25 @@ void aes_cbc_encrypt(const unsigned char *data, unsigned char *cipher_text){
  * When reading the binary, be sure to read it in 512 byte chunks.
  */
 void load_buffer(){
+  //SHA256 last buffer
+  if (first_buffer_sent){
+    t=0;
+    if ((current_position-4)% 50 == 0){
+      if (hash_counter < 8){
+        for (int z =0;z<64;z++){
+          hash_text[z]=cipher_text[hash_counter*64 + z];
+        }
+        sha256Instance->update(hash_text,64);
+        Serial.print("Time to hash a 64 byte:");
+        Serial.println(t);
+        hash_counter++;
+      }
+    }
+  }
+
+
+
+  
   // reset the timer
   RXTimer = 0;
 
@@ -417,6 +445,11 @@ void check_buffer(){
     if (BUFFER_SIZE != binFile.write(cipher_text, BUFFER_SIZE)) {
       Serial.println("write failed");
       sdErrorFlash(); 
+    }
+
+    else{
+      first_buffer_sent = true;
+      hash_counter = 0;
     }
 
     //Reset the record
@@ -636,6 +669,10 @@ void get_current_file(){
 }
 
 void open_binFile(){
+
+  first_buffer_sent = false;
+  sha256Instance=new Sha256();
+  
   get_current_file();
   
   sprintf(current_file_name,"%s%s%s.bin",brand_name,logger_name,current_file);
@@ -657,6 +694,18 @@ void open_binFile(){
 }
 
 void close_binFile(){
+  
+  if (hash_counter < 8){
+    t=0;
+    for (int j =0; j<(8-hash_counter)*64;j++){
+    before_closing_hash[j]=cipher_text[j+hash_counter*64];
+  }
+    sha256Instance->update(before_closing_hash,((8-hash_counter)*64));
+    Serial.print("Time to hash the last buffer before closing buffer:");
+    Serial.println(t);
+  }
+  
+  
   // Add integrity to the last line of the file.
   uint32_t checksum = CRC32.crc32(data_buffer, 508);
   memcpy(&data_buffer[508], &checksum, 4);
@@ -665,6 +714,16 @@ void close_binFile(){
   aes_cbc_encrypt(data_buffer,cipher_text);//Encrypt 512-byte buffer 
   binFile.write(cipher_text, BUFFER_SIZE);
   binFile.close();
+
+  sha256Instance->update(cipher_text,BUFFER_SIZE);
+  sha256Instance->final(hash);
+  for (int i =0;i<SHA256_BLOCK_SIZE;i++){
+    Serial.print(hash[i],HEX);
+    }
+    Serial.println("");
+    Serial.print("Time to close the file:");
+    Serial.println(t);
+  delete sha256Instance;
   
   EEPROM.put(EEPROM_FILE_ID_ADDR,current_file);
   delay(100);
@@ -801,6 +860,8 @@ void myLongPressFunction(){
 
 
 void setup(void) {
+  
+ 
   commandString.reserve(256);
   
   //setup pin modes for the transeivers
