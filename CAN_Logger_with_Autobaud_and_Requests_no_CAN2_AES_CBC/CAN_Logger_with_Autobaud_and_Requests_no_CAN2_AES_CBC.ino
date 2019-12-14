@@ -704,7 +704,7 @@ void open_binFile(){
 }
 
 void close_binFile(){
-  
+  if (first_buffer_sent == true){
   if (hash_counter < 8){
     t=0;
     for (int j =0; j<(8-hash_counter)*64;j++){
@@ -734,7 +734,7 @@ void close_binFile(){
     Serial.print("Time to close the file:");
     Serial.println(t);
   delete sha256Instance;
-  
+  }
   EEPROM.put(EEPROM_FILE_ID_ADDR,current_file);
   delay(100);
   Serial.print("Closed file ");
@@ -870,8 +870,9 @@ void myLongPressFunction(){
 
 
 void setup(void) {
-  
-  sha256Instance=new Sha256();
+
+  first_buffer_sent == false;
+ 
   commandString.reserve(256);
   
   //setup pin modes for the transeivers
