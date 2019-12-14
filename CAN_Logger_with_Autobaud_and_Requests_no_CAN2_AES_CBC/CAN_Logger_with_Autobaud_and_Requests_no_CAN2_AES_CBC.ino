@@ -671,8 +671,18 @@ void get_current_file(){
 void open_binFile(){
 
   first_buffer_sent = false;
-  sha256Instance=new Sha256();
   
+  sha256Instance->datalen = 0;
+  sha256Instance->bitlen = 0;
+  sha256Instance->state[0] = 0x6a09e667;
+  sha256Instance->state[1] = 0xbb67ae85;
+  sha256Instance->state[2] = 0x3c6ef372;
+  sha256Instance->state[3] = 0xa54ff53a;
+  sha256Instance->state[4] = 0x510e527f;
+  sha256Instance->state[5] = 0x9b05688c;
+  sha256Instance->state[6] = 0x1f83d9ab;
+  sha256Instance->state[7] = 0x5be0cd19;
+    
   get_current_file();
   
   sprintf(current_file_name,"%s%s%s.bin",brand_name,logger_name,current_file);
@@ -861,7 +871,7 @@ void myLongPressFunction(){
 
 void setup(void) {
   
- 
+  sha256Instance=new Sha256();
   commandString.reserve(256);
   
   //setup pin modes for the transeivers
