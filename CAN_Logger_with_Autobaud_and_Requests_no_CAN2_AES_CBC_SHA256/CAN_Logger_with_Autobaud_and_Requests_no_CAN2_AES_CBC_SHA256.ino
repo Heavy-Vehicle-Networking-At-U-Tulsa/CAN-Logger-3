@@ -721,6 +721,7 @@ void close_binFile(){
   sha256Instance->update(cipher_text,BUFFER_SIZE);
   sha256Instance->final(hash);
   for (int i =0;i<SHA256_BLOCK_SIZE;i++){
+    if (hash[i]<16) Serial.print("0");
     Serial.print(hash[i],HEX);
     }
     Serial.println("");
