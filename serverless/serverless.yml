@@ -29,6 +29,16 @@ provider:
   profile: csu
   stage: dev
   region: us-east-2
+  apiKeys:
+    - CANLoggerAPIKey 
+  usagePlan:
+    quota:
+      limit: 500
+      offset: 2
+      period: MONTH
+    throttle:
+      burstLimit: 20
+      rateLimit: 10
 
 # you can add statements to the Lambda function's IAM Role here
 #  iamRoleStatements:
@@ -63,13 +73,34 @@ functions:
   hello:
     handler: handler.hello
     awsKmsKeyArn: arn:aws:kms:us-east-2:096696900030:key/161b7817-f9b5-444a-87dc-a4d5943f7c1e
-#    The following are a few example events you can configure
-#    NOTE: Please make sure to change your handler code to work with those events
-#    Check the event documentation for details
     events:
       - http:
           path: hello
           method: get
+          private: true
+  upload:
+    handler: handler.upload
+    awsKmsKeyArn: arn:aws:kms:us-east-2:096696900030:key/161b7817-f9b5-444a-87dc-a4d5943f7c1e
+    events:
+      - http:
+          path: upload
+          method: post
+          private: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer        
+  provision:
+    handler: provision.provision
+    awsKmsKeyArn: arn:aws:kms:us-east-2:096696900030:key/161b7817-f9b5-444a-87dc-a4d5943f7c1e  
+    events:
+      - http:
+          path: provision
+          method: post
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
 #      - websocket: $connect
 #      - s3: ${env:BUCKET}
 #      - schedule: rate(10 minutes)
@@ -102,18 +133,48 @@ functions:
 #    Define function environment variables here
 #    environment:
 #      variable2: value2
-
+  
 # you can add CloudFormation resource templates here
 resources:
   Resources:
+    CognitoUserPool:
+      Type: "AWS::Cognito::UserPool"
+      Properties:
+        MfaConfiguration: OFF
+        UserPoolName: CANLoggerUsers
+        UsernameAttributes:
+          - email
+          - phone_number
+        Policies:
+          PasswordPolicy:
+            MinimumLength: 8
+            RequireLowercase: True
+            RequireNumbers: True
+            RequireSymbols: True
+            RequireUppercase: True
+    CognitoUserPoolClient:
+      Type: "AWS::Cognito::UserPoolClient"
+      Properties:
+        ClientName: CANLoggerUsersClient
+        GenerateSecret: False
+        UserPoolId:
+          Ref: CognitoUserPool
+    ApiGatewayAuthorizer:
+      DependsOn:
+        - ApiGatewayRestApi
+      Type: AWS::ApiGateway::Authorizer
+      Properties:
+        Name: cognito-authorizer
+        IdentitySource: method.request.header.Authorization
+        RestApiId:
+          Ref: ApiGatewayRestApi
+        Type: COGNITO_USER_POOLS
+        ProviderARNs:
+          - Fn::GetAtt: [CognitoUserPool, Arn]
     LogFileBucket:
       Type: AWS::S3::Bucket
       Properties:
         BucketName: can-log-files
-#  Outputs:
-#     NewOutput:
-#       Description: "Description for the output"
-#       Value: "Some output value"
     logfileDB:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -136,18 +197,96 @@ resources:
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
-    userDB:
+    deviceDB:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: CANLoggerUsers
+        TableName: CANLoggerDevices
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
-          - AttributeName: email
+          - AttributeName: logger
             AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
-          - AttributeName: email
+          - AttributeName: logger
             KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
+        GlobalSecondaryIndexes:
+          - IndexName: logger-index
+            KeySchema:
+              - AttributeName: logger
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+    lambdaAuthExecute:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: /
+        RoleName: Lambda_Auth_Execute_${self:provider.stage}
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+          - arn:aws:iam::aws:policy/AmazonSESFullAccess
+          - arn:aws:iam::aws:policy/AmazonS3FullAccess
+          - arn:aws:iam::aws:policy/SecretsManagerReadWrite
+          - arn:aws:iam::aws:policy/AWSKeyManagementServicePowerUser
+        Policies:
+          - PolicyName: LambdaLogging
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - lambda:InvokeFunction
+                    - lambda:InvokeAsync
+                  Resource: '*'
+                - Effect: Allow
+                  Action:
+                    - logs:CreateLogStream
+                    - logs:PutLogEvents
+                    - logs:CreateLogGroup
+                  Resource:
+                    - 'Fn::Join':
+                      - ':'
+                      - 
+                        - 'arn:aws:logs'
+                        - Ref: 'AWS::Region'
+                        - Ref: 'AWS::AccountId'
+                        - 'log-group:/aws/lambda/*:*:*'
+                - Effect: Allow
+                  Action:
+                    - dynamodb:BatchGetItem
+                    - dynamodb:BatchWriteItem
+                    - dynamodb:UntagResource
+                    - dynamodb:PutItem
+                    - dynamodb:ListTables
+                    - dynamodb:DeleteItem
+                    - dynamodb:Scan
+                    - dynamodb:ListTagsOfResource
+                    - dynamodb:Query
+                    - dynamodb:DescribeStream
+                    - dynamodb:UpdateItem
+                    - dynamodb:ListStreams
+                    - dynamodb:TagResources
+                    - dynamodb:DescribeTable
+                    - dynamodb:GetShardIterator
+                    - dynamodb:GetItem
+                    - dynamodb:DescribeLimits
+                    - dynamodb:GetRecords
+                  Resource: '*'
+  Outputs:
+    CognitoUserPoolArn:
+      Value:
+        Fn::GetAtt:
+          - CognitoUserPool
+          - Arn
+      Export:
+        Name: CognitoUserPoolArn

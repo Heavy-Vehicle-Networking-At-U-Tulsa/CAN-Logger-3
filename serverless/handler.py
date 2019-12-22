@@ -1,24 +1,17 @@
 import json
 
+from utils import lambdaResponse as response
 
 def hello(event, context):
     body = {
         "message": "Go Serverless v1.0! Your function executed successfully!",
-        "input": event
     }
 
-    response = {
-        "statusCode": 200,
-        "body": json.dumps(body)
-    }
+    return response(200, body)
 
-    return response
-
-    # Use this code if you don't use the http event with the LAMBDA-PROXY
-    # integration
-    """
-    return {
-        "message": "Go Serverless v1.0! Your function executed successfully!",
+def upload(event, context):
+    body = {
+        "message": "You've called the upload function",
         "event": event
     }
-    """
+    return response(200, body)
