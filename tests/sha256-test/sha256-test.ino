@@ -1,15 +1,16 @@
 #include <sha256.h>
 
 void setup() {
+  delay(150);
+
+  Serial.println("Test vector for SHA256");
+  Serial.println("");
+  
   Sha256* sha256Instance;
   BYTE hash[SHA256_BLOCK_SIZE];
   char texthash[2*SHA256_BLOCK_SIZE+1];
 
-  Serial.begin(115200);
-  delay(50);
 
-  Serial.println("Test vector for SHA256");
-  Serial.println("");
   
   BYTE text1[]="";
   const char hash_text1[] = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";

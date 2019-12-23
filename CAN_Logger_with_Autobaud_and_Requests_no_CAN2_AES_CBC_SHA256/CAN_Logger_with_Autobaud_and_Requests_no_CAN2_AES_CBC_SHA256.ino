@@ -60,6 +60,15 @@
 //Get access to a hardware based CRC32 
 FastCRC32 CRC32;
 
+#define ECC_PUB_SIZE 28
+byte public_key[ECC_PUB_SIZE];
+#define SIGNATURE_SIZE 32
+byte signature[SIGNATURE_SIZE];
+
+// Use this buffer to keep track of the meta data for each file
+char data_file_contents[512];
+uint16_t data_file_index = 0;
+
 // define the number of rounds with AES encryption.
 #define AES_128_NROUNDS 10
 
@@ -69,15 +78,13 @@ FastCRC32 CRC32;
 #define EEPROM_FILE_ID_ADDR    8  // 9, 10, 11 ==00
 #define EEPROM_BRAND_NAME_ADDR 12 //13 and 14 ==00
 
-
 #define CRC32_BUFFER_LOC       508
 
 // Setup a limit to turn off the CAN controller after this many messages.
 #define ERROR_COUNT_LIMIT 5000
 
 // setup the length for a serial command buffer to control the logger 2.
-#define COMMAND_BUFFER_LEN 20 
-char command_buffer[COMMAND_BUFFER_LEN];
+
 
 // Set up the SD Card object
 SdFs sd;
@@ -86,7 +93,7 @@ SdFs sd;
 
 // Create a file object
 FsFile binFile;
-FsFile baudFile;
+FsFile dataFile;
 
 String directory_listing;
 
@@ -117,6 +124,7 @@ elapsedMicros micro_timer;
 char logger_name[4];
 bool file_open;
 char current_file_name[13];
+char data_file_name[13];
 char prefix[5];
 char file_name_prefix[6];
 char brand_name[3];
@@ -261,7 +269,8 @@ bool recording = true;
 //SHA256
 unsigned int hash_counter;
 #define SHA256_BLOCK_SIZE 32          // SHA256 outputs a 32 byte digest
-byte hash_text[SHA256_BLOCK_SIZE*2];
+byte texthash[SHA256_BLOCK_SIZE*2+1];
+byte hash_ciphertext[SHA256_BLOCK_SIZE*2];
 byte hash[SHA256_BLOCK_SIZE];
 byte before_closing_hash[BUFFER_SIZE];
 boolean first_buffer_sent;
@@ -293,6 +302,7 @@ uint32_t trng(){
     
 unsigned char cipher_text[BUFFER_SIZE];
 unsigned char aeskey[16], keysched[4 * 44], in[16], out[16], init_vector[16];
+unsigned char encrypted_aeskey[16];
 
 //Generate ranndom iv and key function, 32 bytes number
 void iv_key_RNG(){
@@ -343,12 +353,12 @@ void load_buffer(){
     micro_timer=0;
     if ((current_position - 4) % 50 == 0){ // use 50 because it represents 2 messages.
       if (hash_counter < 8){
-        for (int z =0;z<SHA_UPDATE_SIZE;z++){
-          hash_text[z]=cipher_text[hash_counter*SHA_UPDATE_SIZE + z];
+        for (int z = 0; z < SHA_UPDATE_SIZE; z++){
+          hash_ciphertext[z]=cipher_text[hash_counter*SHA_UPDATE_SIZE + z];
         }
-        sha256Instance->update(hash_text,SHA_UPDATE_SIZE);
-        Serial.print("Time to hash 64 bytes (us):");
-        Serial.println(micro_timer);
+        sha256Instance->update(hash_ciphertext,SHA_UPDATE_SIZE);
+//        Serial.print("Time to hash 64 bytes (us):");
+//        Serial.println(micro_timer);
         hash_counter++;
       }
     }
@@ -400,8 +410,8 @@ void check_buffer(){
     //Create a file if it is not open yet
     if (!file_open) {
       open_binFile();
-      Serial.print("Opened File ");
-      Serial.println(current_file_name);
+      //Serial.print("Opened File ");
+      //Serial.println(current_file_name);
     }
   
     uint32_t start_micros = micros();
@@ -452,7 +462,8 @@ void check_buffer(){
     //Record write times for the previous frame, since the existing frame was just written
     uint32_t elapsed_micros = micros() - start_micros;
     memcpy(&data_buffer[505], &elapsed_micros, 3);
- 
+    //Serial.println(elapsed_micros);
+    
     //Toggle LED to show SD card writing
     YELLOW_LED_state = !YELLOW_LED_state;
     digitalWrite(YELLOW_LED,YELLOW_LED_state);
@@ -474,6 +485,7 @@ void print_hex(){
       Serial.println();
     }
     binFile.close();
+    
 
   }
   else
@@ -499,11 +511,12 @@ void stream_binary(char stream_file_name[]){
   turn_recording_off();
   char line[BUFFER_SIZE];
   if (!binFile.isOpen()) close_binFile();
+  //Serial.println(stream_file_name);
   if (sd.exists(stream_file_name)){
     binFile.open(stream_file_name, O_READ);
     while (binFile.read(line, sizeof(line)) > 0) 
     {
-      for (uint16_t i = 0; i < sizeof(line); i++)
+      for (uint32_t i = 0; i < sizeof(line); i++)
       {
         Serial.write(line[i]);
       }  
@@ -678,6 +691,7 @@ void open_binFile(){
   else
   {
     YELLOW_LED_fast_blink_state == false;
+    write_initial_meta_data();
   }
 
   //Move the current position to 4 since the first 4 bytes are taken.
@@ -689,52 +703,50 @@ void open_binFile(){
 
 void close_binFile(){
   micro_timer = 0;
-  
   if (first_buffer_sent){
     if (hash_counter < 8){
       for (int j = 0; j < (8 - hash_counter)*SHA256_BLOCK_SIZE; j++){
-      before_closing_hash[j]=cipher_text[j+hash_counter*SHA256_BLOCK_SIZE];
+        before_closing_hash[j]=cipher_text[j+hash_counter*SHA256_BLOCK_SIZE];
+      }
+      sha256Instance->update(before_closing_hash,((8-hash_counter)*SHA256_BLOCK_SIZE));
+      //Serial.print("Time to hash the last buffer before closing buffer (us):");
+      //Serial.println(micro_timer);
     }
-    sha256Instance->update(before_closing_hash,((8-hash_counter)*SHA256_BLOCK_SIZE));
-    Serial.print("Time to hash the last buffer before closing buffer (us):");
-    Serial.println(micro_timer);
+  
+    // Add integrity to the last line of the file.
+    uint32_t checksum = CRC32.crc32(data_buffer, CRC32_BUFFER_LOC);
+    memcpy(&data_buffer[CRC32_BUFFER_LOC], &checksum, 4);
+    
+    //Write the last set of data
+    aes_cbc_encrypt(data_buffer,cipher_text);//Encrypt 512-byte buffer 
+    binFile.write(cipher_text, BUFFER_SIZE);
+    uint32_t file_size = binFile.size();
+    binFile.close();
+    
+    Serial.print(",SIZE:");
+    memcpy(&data_file_contents[data_file_index],",SIZE:",6);
+    data_file_index+=6;
+    char size_char[11];
+    sprintf(size_char,"%10d",file_size);
+    Serial.print(size_char);
+    memcpy(&data_file_contents[data_file_index],&size_char,10);
+    data_file_index+=10;
+   
+    write_final_meta_data();
+    EEPROM.put(EEPROM_FILE_ID_ADDR,current_file);
+    delay(10);
+    file_open = false;
+    //Initialize the CAN channels with autobaud.
+    RXCount0 = 0;
+    RXCount1 = 0;
+    RXCount2 = 0;
+    Can0.begin(0);
+    Can1.begin(0);
+  
+    //Set first buffer sent back to false when closing file
+    first_buffer_sent = false;
   }
   
-  
-  // Add integrity to the last line of the file.
-  uint32_t checksum = CRC32.crc32(data_buffer, CRC32_BUFFER_LOC);
-  memcpy(&data_buffer[CRC32_BUFFER_LOC], &checksum, 4);
-  
-  //Write the last set of data
-  aes_cbc_encrypt(data_buffer,cipher_text);//Encrypt 512-byte buffer 
-  binFile.write(cipher_text, BUFFER_SIZE);
-  binFile.close();
-
-  sha256Instance->update(cipher_text,BUFFER_SIZE);
-  sha256Instance->final(hash);
-  for (int i = 0; i < SHA256_BLOCK_SIZE; i++){
-    if (hash[i]<16) Serial.print("0");
-    Serial.print(hash[i],HEX);
-    }
-    Serial.println("");
-    Serial.print("Time to close the file (us):");
-    Serial.println(micro_timer);
-  delete sha256Instance;
-  }
-  EEPROM.put(EEPROM_FILE_ID_ADDR,current_file);
-  delay(100);
-  Serial.print("Closed file ");
-  Serial.println(current_file_name);
-  file_open = false;
-  //Initialize the CAN channels with autobaud.
-  RXCount0 = 0;
-  RXCount1 = 0;
-  RXCount2 = 0;
-  Can0.begin(0);
-  Can1.begin(0);
-
-  //Set first buffer sent back to false when closing file
-  first_buffer_sent = false;
 }
 
 
@@ -911,6 +923,9 @@ void setup(void) {
   for (int i = 0; i < sizeof(init_vector); i++)  init_vector[i] = iv_and_key[i];
   mmcau_aes_set_key(aeskey, 128, keysched);//Set key
   memcpy(out,init_vector,16); //Load IV
+
+  // Add the ATECC Encryption Scheme here and update the value of the encrypted_aeskey
+  memcpy(&encrypted_aeskey,&aeskey,16);
   
   Serial.println("Starting CAN logger.");
 
@@ -989,44 +1004,126 @@ void setup(void) {
   //EEPROM.put(EEPROM_BRAND_NAME_ADDR,brand_name);
 
   Serial.println("Done.");
-
-
-  Serial.print("Writing to baudRate.txt... ");
-  baudFile.open("baudRate.txt", O_RDWR | O_CREAT | O_AT_END);
-  sprintf(timeString,"%04d-%02d-%02dT%02d:%02d:%02d,%d,%d",year(),month(),day(),hour(),minute(),second(),Can0.baud_rate,Can1.baud_rate);
-  baudFile.print(timeString);
-  baudFile.print(" TU");
-  baudFile.print(logger_name);
-  baudFile.print(current_file);
-  baudFile.print(" IV: ");
-  for (int n = 0; n < sizeof(init_vector); n++){
-    baudFile.print(",0x");
-    if (init_vector[n] < 16){
-      baudFile.print("0");
-    }
-    
-    baudFile.print(init_vector[n],HEX);
-  }
-  baudFile.print(" KEY:");
-    for (int n =0; n < sizeof(aeskey);n++){
-    baudFile.print(",0x");
-    if (aeskey[n] <16){
-      baudFile.print("0");
-    }
-     baudFile.print(aeskey[n],HEX);
-  }
-  baudFile.println("");
-  baudFile.close();
-  Serial.println("Done.");
-
   
   sprintf(file_name_prefix,"%s%s",brand_name,logger_name);
   Serial.print("The filename prefix is ");
   Serial.println(file_name_prefix);
+
+  
   
   recording = true;
   pinMode(POWER_PIN,INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(POWER_PIN), close_binFile, RISING);
+}
+
+
+void write_final_meta_data(){
+  sha256Instance->update(cipher_text,BUFFER_SIZE);
+  sha256Instance->final(hash);
+  delete sha256Instance;
+  Serial.print(",BIN-SHA:");
+  memcpy(&data_file_contents[data_file_index],",BIN-SHA:",9);
+  data_file_index+=9;
+  for (int n = 0; n < sizeof(hash); n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",hash[n]);
+    Serial.print(hex_digit);
+    memcpy(&data_file_contents[data_file_index],&hex_digit,2);
+    data_file_index+=2;
+  }
+    
+  sha256Instance=new Sha256();
+  sha256Instance->update(data_file_contents, strlen((const char*)data_file_contents));
+  sha256Instance->final(hash);
+  delete sha256Instance;
+  
+  Serial.print(",TXT-SHA:");
+  memcpy(&data_file_contents[data_file_index],",TXT-SHA:",9);
+  data_file_index+=9;
+  for (int n = 0; n < sizeof(hash); n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",hash[n]);
+    Serial.print(hex_digit);
+    memcpy(&data_file_contents[data_file_index],&hex_digit,2);
+    data_file_index+=2;
+  }
+  
+  // Compute Signature here
+  
+  Serial.print(",SIG:");
+  memcpy(&data_file_contents[data_file_index],",SIG:",5);
+  data_file_index+=5;
+  
+  for (int n = 0; n < sizeof(signature); n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",signature[n]);
+    Serial.print(hex_digit);
+    memcpy(&data_file_contents[data_file_index],&hex_digit,2);
+    data_file_index+=2;
+  }
+  Serial.println();
+
+  //Write the metadata file
+  sprintf(data_file_name,"%s%s%s.txt",brand_name,logger_name,current_file);
+  if (!dataFile.open(data_file_name, O_RDWR | O_CREAT)) {
+    YELLOW_LED_fast_blink_state == true;
+    Serial.println("Error opening ");
+    Serial.println(data_file_name);
+  }
+  else{
+    for (int i = 0; i<strlen((const char*)data_file_contents);i++){
+      dataFile.write(data_file_contents[i]);
+    }    
+    dataFile.close();  
+  }
+  Serial.println(data_file_contents);
+  
+  memset(data_file_contents,0,sizeof(data_file_contents));
+  data_file_index=0;
+}
+
+void write_initial_meta_data(){
+  sprintf(timeString,"%04d-%02d-%02dT%02d:%02d:%02d,%d,%d,",year(),month(),day(),hour(),minute(),second(),Can0.baud_rate,Can1.baud_rate);
+  Serial.print(timeString);
+  memcpy(&data_file_contents[data_file_index],&timeString,strlen((const char*)timeString));
+  data_file_index+=strlen((const char*)timeString);
+  
+  Serial.print(current_file_name);
+  memcpy(&data_file_contents[data_file_index],&current_file_name,12);
+  data_file_index+=12;
+  
+  Serial.print(",IV:");
+  memcpy(&data_file_contents[data_file_index],",IV:",4);
+  data_file_index+=4;
+  for (int n = 0; n < sizeof(init_vector); n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",init_vector[n]);
+    Serial.print(hex_digit);
+    memcpy(&data_file_contents[data_file_index],&hex_digit,2);
+    data_file_index+=2;
+  }
+  
+  Serial.print(",KEY:");
+  memcpy(&data_file_contents[data_file_index],",KEY:",5);
+  data_file_index+=5;
+  for (int n = 0; n < sizeof(encrypted_aeskey); n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",encrypted_aeskey[n]);
+    Serial.print(hex_digit);
+    memcpy(&data_file_contents[data_file_index],&hex_digit,2);
+    data_file_index+=2;
+  }
+  
+  Serial.print(",PUB:");
+  memcpy(&data_file_contents[data_file_index],",PUB:",5);
+  data_file_index+=5;
+  for (int n = 0; n < sizeof(public_key); n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",public_key[n]);
+    Serial.print(hex_digit);
+    memcpy(&data_file_contents[data_file_index],&hex_digit,2);
+    data_file_index+=2;
+  }
 }
 
 void rx_message_routine(uint32_t RXCount){
@@ -1162,110 +1259,106 @@ void loop(void) {
   
   if (Serial.available() >= 2) {
     commandString = Serial.readStringUntil('\n');
-    commandString.toCharArray(command_buffer, COMMAND_BUFFER_LEN);
-    // Count the number of valid characters
-    uint8_t j = 0;
-    while ((isAlphaNumeric(command_buffer[j]) or command_buffer[j] == ' ') and j < COMMAND_BUFFER_LEN) j++;
-    if (commandString.length() == j){ // check to make sure no non-ascii inputs are being interpreted 
-      memset(command_buffer,0,COMMAND_BUFFER_LEN);
-      if      (commandString.equalsIgnoreCase("HEX"))        print_hex();
-      else if (commandString.equalsIgnoreCase("BIN"))        stream_binary(current_file_name);
-      else if (commandString.equalsIgnoreCase("STOP"))       turn_recording_off();
-      else if (commandString.equalsIgnoreCase("START"))      turn_recording_on();
-      else if (commandString.equalsIgnoreCase("NEW"))        close_binFile();
-      else if (commandString.equalsIgnoreCase("DF"))         sd_capacity();
-      else if (commandString.equalsIgnoreCase("LS"))         list_files();
-      else if (commandString.equalsIgnoreCase("LS A"))       list_files_a();
-      else if (commandString.equalsIgnoreCase("FORMAT"))     format_sd_card();
-      else if (commandString.equalsIgnoreCase("BAUD"))       display_baud_rate();
-      else if (commandString.equalsIgnoreCase("ERRORS"))     display_error_count();
-      else if (commandString.equalsIgnoreCase("STREAM ON"))  turn_streaming_on();
-      else if (commandString.equalsIgnoreCase("STREAM OFF")) turn_streaming_off();
-      else if (commandString.equalsIgnoreCase("REQUEST ON")) turn_requests_on();
-      else if (commandString.equalsIgnoreCase("REQUEST OFF"))turn_requests_off();
-      else if (commandString.startsWith("DEL ")){
-        char delete_file_name[13];
-        commandString.remove(0,4);
-        commandString.toCharArray(delete_file_name,13);
-        delete_file(delete_file_name);
-      }
-      else if (commandString.equalsIgnoreCase("BAUDRATE")){
-        char stream_file_name[13]; 
-        strcpy(stream_file_name,"baudRate.txt");
-        stream_text(stream_file_name);
-      }
-      else if (commandString.startsWith(brand_name)){
-        char stream_file_name[13]; 
-        commandString.toCharArray(stream_file_name,13);
-        stream_binary(stream_file_name);     
-      }
-      else if (commandString.startsWith("ID ")){
-        commandString.remove(0,3);
-        if (commandString.length() == 3){
-          commandString.toUpperCase();
-          commandString.toCharArray(logger_name,4);
-          EEPROM.put(EEPROM_DEVICE_ID_ADDR,logger_name);
-          Serial.print("Set Device ID to ");
-          Serial.println(logger_name);
-        }
-        else {
-          Serial.println("Improper ID Length");
-        }
-      }
-      else if (commandString.startsWith("COUNT")){
-        commandString.remove(0,6);
+    if      (commandString.equalsIgnoreCase("HEX"))        print_hex();
+    else if (commandString.equalsIgnoreCase("STOP"))       turn_recording_off();
+    else if (commandString.equalsIgnoreCase("START"))      turn_recording_on();
+    else if (commandString.equalsIgnoreCase("NEW"))        close_binFile();
+    else if (commandString.equalsIgnoreCase("DF"))         sd_capacity();
+    else if (commandString.equalsIgnoreCase("LS"))         list_files();
+    else if (commandString.equalsIgnoreCase("LS A"))       list_files_a();
+    else if (commandString.equalsIgnoreCase("FORMAT"))     format_sd_card();
+    else if (commandString.equalsIgnoreCase("BAUD"))       display_baud_rate();
+    else if (commandString.equalsIgnoreCase("ERRORS"))     display_error_count();
+    else if (commandString.equalsIgnoreCase("STREAM ON"))  turn_streaming_on();
+    else if (commandString.equalsIgnoreCase("STREAM OFF")) turn_streaming_off();
+    else if (commandString.equalsIgnoreCase("REQUEST ON")) turn_requests_on();
+    else if (commandString.equalsIgnoreCase("REQUEST OFF"))turn_requests_off();
+    else if (commandString.startsWith("BIN ")){
+      char current_file_name[13];
+      commandString.remove(0,4);
+      commandString.toCharArray(current_file_name,13);
+      stream_binary(current_file_name);
+    }
+    else if (commandString.startsWith("DEL ")){
+      char delete_file_name[13];
+      commandString.remove(0,4);
+      commandString.toCharArray(delete_file_name,13);
+      delete_file(delete_file_name);
+    }
+    else if (commandString.equalsIgnoreCase("BAUDRATE")){
+      stream_text(data_file_name);
+    }
+    else if (char(commandString[0]) == brand_name[0] && char(commandString[1]) == brand_name[1]){
+      char stream_file_name[13]; 
+      commandString.toCharArray(stream_file_name,13);
+      stream_binary(stream_file_name);     
+    }
+    else if (commandString.startsWith("ID ")){
+      commandString.remove(0,3);
+      if (commandString.length() == 3){
         commandString.toUpperCase();
-        char input_count[4];
-        commandString.toCharArray(input_count,4);
-        memset(current_file,0,4);
-        memset(current_file,'0',3);
-        if (commandString.length() == 3) {
-          current_file[0] = input_count[0];
-          current_file[1] = input_count[1];
-          current_file[2] = input_count[2];
-        }
-        else if (commandString.length() == 2){
-          current_file[1] = input_count[0];
-          current_file[2] = input_count[1];
-        }
-        else if (commandString.length() == 1){
-          current_file[2] = input_count[0];
-        }
-        if (isFileNameValid(current_file)){
-          EEPROM.put(EEPROM_FILE_ID_ADDR,current_file);
-          Serial.print("Set current file to ");
-          Serial.println(current_file);
-        }
-        else
-        {
-          Serial.println("Not a valid file count.");
-        }
-      }    
-      else if (commandString.equalsIgnoreCase("HELP")){
-        Serial.println(F("List of available commands:"));
-        Serial.println(F("HEX         (Stream the latest log file in printable hexadecimal)"));
-        Serial.println(F("BIN         (Stream the latest log file in binary format to the serial port)"));
-        Serial.println(F("DEL [file-name.bin] (Delete the chosen file in the SD card)"));
-        Serial.println(F("STOP        (Turn recording off)"));
-        Serial.println(F("START       (Turn recording on)"));
-        Serial.println(F("NEW         (Start a new log file)"));
-        Serial.println(F("DF          (Show SD card capacity)"));
-        Serial.println(F("LS          (List files in the SD card)"));
-        Serial.println(F("LS A        (List files in the SD card with time stamp)"));
-        Serial.println(F("FORMAT      (Format the SD card)"));
-        Serial.println(F("BAUD        (Display current baudrate on the channels)"));
-        Serial.println(F("ERRORS      (Display error count on the channels)"));
-        Serial.println(F("REQUEST ON  (Turn requests on)"));
-        Serial.println(F("REQUEST OFF (Turn request off)"));
-        Serial.println(F("STREAM ON   (Start sending interpreted CAN Frames to the Serial port)"));
-        Serial.println(F("STREAM OFF  (Stop sending interpreted CAN Frames to the Serial port)"));
-        Serial.println(F("BAUDRATE    (Show the baudrate in each log file)"));
-        Serial.println(F("COUNT [abc] (Set the file index to a 3 digit alphanumeric code abc)"));
-        Serial.println(F("ID [Vxx]    (Change device version [V] and serial number [xx]; e.g. ID 201 means version 2 serial number 01)"));
+        commandString.toCharArray(logger_name,4);
+        EEPROM.put(EEPROM_DEVICE_ID_ADDR,logger_name);
+        Serial.print("Set Device ID to ");
+        Serial.println(logger_name);
       }
       else {
-        Serial.println(("Unknown Command"));
+        Serial.println("Improper ID Length");
       }
+    }
+    else if (commandString.startsWith("COUNT")){
+      commandString.remove(0,6);
+      commandString.toUpperCase();
+      char input_count[4];
+      commandString.toCharArray(input_count,4);
+      memset(current_file,0,4);
+      memset(current_file,'0',3);
+      if (commandString.length() == 3) {
+        current_file[0] = input_count[0];
+        current_file[1] = input_count[1];
+        current_file[2] = input_count[2];
+      }
+      else if (commandString.length() == 2){
+        current_file[1] = input_count[0];
+        current_file[2] = input_count[1];
+      }
+      else if (commandString.length() == 1){
+        current_file[2] = input_count[0];
+      }
+      if (isFileNameValid(current_file)){
+        EEPROM.put(EEPROM_FILE_ID_ADDR,current_file);
+        Serial.print("Set current file to ");
+        Serial.println(current_file);
+      }
+      else
+      {
+        Serial.println("Not a valid file count.");
+      }
+    }    
+    else if (commandString.equalsIgnoreCase("HELP")){
+      Serial.println(F("List of available commands:"));
+      Serial.println(F("HEX         (Stream the latest log file in printable hexadecimal)"));
+      Serial.println(F("BIN         (Stream the latest log file in binary format to the serial port)"));
+      Serial.println(F("DEL [file-name.bin] (Delete the chosen file in the SD card)"));
+      Serial.println(F("STOP        (Turn recording off)"));
+      Serial.println(F("START       (Turn recording on)"));
+      Serial.println(F("NEW         (Start a new log file)"));
+      Serial.println(F("DF          (Show SD card capacity)"));
+      Serial.println(F("LS          (List files in the SD card)"));
+      Serial.println(F("LS A        (List files in the SD card with time stamp)"));
+      Serial.println(F("FORMAT      (Format the SD card)"));
+      Serial.println(F("BAUD        (Display current baudrate on the channels)"));
+      Serial.println(F("ERRORS      (Display error count on the channels)"));
+      Serial.println(F("REQUEST ON  (Turn requests on)"));
+      Serial.println(F("REQUEST OFF (Turn request off)"));
+      Serial.println(F("STREAM ON   (Start sending interpreted CAN Frames to the Serial port)"));
+      Serial.println(F("STREAM OFF  (Stop sending interpreted CAN Frames to the Serial port)"));
+      Serial.println(F("BAUDRATE    (Show the baudrate in each log file)"));
+      Serial.println(F("COUNT [abc] (Set the file index to a 3 digit alphanumeric code abc)"));
+      Serial.println(F("ID [Vxx]    (Change device version [V] and serial number [xx]; e.g. ID 201 means version 2 serial number 01)"));
+    }
+    else {
+      Serial.println(("Unknown Command"));
     }
     Serial.clear();
   }
@@ -1317,7 +1410,7 @@ void turn_recording_on(){
 
 void turn_recording_off(){
   recording = false;
-  Serial.println("Recording Off");
+  //Serial.println("Recording Off");
 }
 
 void turn_streaming_on(){
@@ -1327,7 +1420,7 @@ void turn_streaming_on(){
 
 void turn_streaming_off(){
   stream = false;
-  Serial.println("Streaming Off");
+  //Serial.println("Streaming Off");
 }
 
 void display_baud_rate(){
@@ -1356,10 +1449,6 @@ void list_files_a(){
   sd.ls(LS_DATE | LS_SIZE | LS_R);     
 }
 
-//==============================================================================
-// Serial output stream
-ArduinoOutStream cout(Serial);
-//------------------------------------------------------------------------------
 uint32_t cardSectorCount = 0;
 uint8_t  sectorBuffer[BUFFER_SIZE];
 //------------------------------------------------------------------------------

@@ -40,6 +40,7 @@ import requests
 import threading
 import queue
 import datetime
+import time
 import base64
 import zipfile
 import sys
@@ -175,18 +176,34 @@ class CANLogger(QMainWindow):
             response.append(ret_val.decode('ascii').strip().split())
             ret_val = self.ser.read_until(b'\r\n')    
         logger.debug(response)
+        latest_file_name = ''
+        latest_file_size = 0
         for line in response:
             logger.debug(line)
-        latest_file_name = line[3]
-        latest_file_size = int(line[2])
+            latest_file_name = line[3]
+            latest_file_size = int(line[2])
+        
         logger.debug("Downloading {} bytes from {}".format(latest_file_size,latest_file_name))    
-        if len(latest_file_name)>4:
-            self.ser.timeout = None
-            self.ser.write(b'BIN '+bytes(latest_file_name,'ascii')+b'\n')
-            self.encrypted_binary = self.ser.read(latest_file_size)
+        if len(latest_file_name) > 4 and latest_file_size > 400:
+            self.ser.timeout = 10
+            #send the command to the Logger to download data
+            self.ser.write(b'BIN ' + bytes(latest_file_name[:-3]+"txt",'ascii') + b'\n') 
+            self.meta_data = self.ser.read(latest_file_size).decode('ascii').split(",")
+            
+            logger.debug("file meta_data:") 
+            logger.debug("{}".format(self.meta_data)) 
+            binfile_size = int(self.meta_data[7].split(":")[1])
+            filename = self.meta_data[3]
+            logger.debug("Downloading {} bytes of {}".format(binfile_size,filename))
+            time.sleep(1)
+            #self.ser.reset_input_buffer()
+            command = b'BIN ' + bytes(filename.strip(),'ascii') + b'\n'
+            print(command)
+            self.ser.write(command) 
+            self.encrypted_binary = self.ser.read(binfile_size-512)
             
             logger.debug("encrypted_binary:") 
-            logger.debug(self.encrypted_binary)        
+            logger.debug("{}...{}".format(self.encrypted_binary[:100],self.encrypted_binary[-100:]))     
 
     def hello(self):
         """
