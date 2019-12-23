@@ -13,7 +13,7 @@
  * 
  * Released under the MIT License
  *
- * Copyright (c) 2018        Jeremy S. Daily
+ * Copyright (c) 2019        Jeremy S. Daily, Duy Van
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,17 +56,19 @@
 #include <FastCRC.h> // Add the CRC to include in the record to validate CAN frame messages.
 #include <sha256.h> // Keep track of the file hash as it is created.
 #include "CryptoAccel.h" //Makes the cryptographic acceleration hardware arduino compatible
+#include <SparkFun_ATECCX08a_Arduino_Library.h> //Click here to get the library: http://librarymanager/All#SparkFun_ATECCX08a
+#include <i2c_t3.h> //use to communicate with the ATECC608a cryptographic coprocessor
 
+ATECCX08A atecc;
 //Get access to a hardware based CRC32 
 FastCRC32 CRC32;
 
-#define ECC_PUB_SIZE 28
-byte public_key[ECC_PUB_SIZE];
-#define SIGNATURE_SIZE 32
-byte signature[SIGNATURE_SIZE];
+
+// This data needs to be retrieved from the ATECC chip during startup.
+uint8_t server_public_key[64] ={0X89,0X5e,0Xdf,0Xf7,0Xc5,0Xc2,0X96,0Xeb,0X97,0Xa1,0X71,0X98,0Xc2,0X53,0Xc1,0X05,0Xf4,0Xe3,0Xda,0Xf6,0X29,0X64,0X71,0Xb2,0X15,0Xac,0X52,0X0e,0X0a,0X11,0Xce,0X54,0Xa3,0Xec,0X91,0X0b,0Xa4,0Xe8,0X48,0X29,0Xec,0X69,0Xbe,0Xca,0Xc9,0Xcf,0Xc8,0Xc4,0X32,0X8c,0Xec,0X5e,0X93,0X03,0X93,0Xac,0X10,0X5b,0X66,0X30,0X49,0Xeb,0Xe4,0X87};
 
 // Use this buffer to keep track of the meta data for each file
-char data_file_contents[512];
+char data_file_contents[1024];
 uint16_t data_file_index = 0;
 
 // define the number of rounds with AES encryption.
@@ -277,50 +279,15 @@ boolean first_buffer_sent;
 Sha256* sha256Instance;
 #define SHA_UPDATE_SIZE 50
 
-// random RNG
-#define REPS 50
-
-#define RNG_CR_GO_MASK        0x1u
-#define RNG_CR_HA_MASK        0x2u
-#define RNG_CR_INTM_MASK      0x4u
-#define RNG_CR_CLRI_MASK      0x8u
-#define RNG_CR_SLP_MASK       0x10u
-#define RNG_SR_OREG_LVL_MASK  0xFF00u
-#define RNG_SR_OREG_LVL_SHIFT 8
-#define RNG_SR_OREG_LVL(x)    (((uint32_t)(((uint32_t)(x))<<RNG_SR_OREG_LVL_SHIFT))&RNG_SR_OREG_LVL_MASK)
-#define SIM_SCGC6_RNGA        ((uint32_t)0x00000200)
-
-uint32_t random_number;
-uint8_t iv_and_key[32];
-
-uint32_t trng(){
-    RNG_CR |= RNG_CR_GO_MASK;
-    while((RNG_SR & RNG_SR_OREG_LVL(0xF)) == 0); // wait
-    return RNG_OR;
-}
-
-    
+uint8_t iv_and_key[32];    
 unsigned char cipher_text[BUFFER_SIZE];
 unsigned char aeskey[16], keysched[4 * 44], in[16], out[16], init_vector[16];
 unsigned char encrypted_aeskey[16];
 
 //Generate ranndom iv and key function, 32 bytes number
-void iv_key_RNG(){
-    
-    for (int m =0;m<8;m++){
-    SIM_SCGC6 |= SIM_SCGC6_RNGA; // enable RNG
-    RNG_CR &= ~RNG_CR_SLP_MASK;
-    RNG_CR |= RNG_CR_HA_MASK;  // high assurance, not needed
-
-    //Random number, 4 byte long
-    for (int l =0;l<REPS;l++){
-      random_number = trng();
-      }
-    iv_and_key[4*m] = (random_number & 0xFF000000) >> 24;
-    iv_and_key[4*m+1] = (random_number & 0x00FF0000) >> 16;
-    iv_and_key[4*m+2] = (random_number & 0x0000FF00) >> 8;
-    iv_and_key[4*m+3] = (random_number & 0x000000FF);
-    }
+void iv_key_RNG(){ 
+    atecc.updateRandom32Bytes();
+    memcpy(&iv_and_key[0],&atecc.random32Bytes[0],32);
 }
 
 //AES CBC funtion
@@ -510,6 +477,7 @@ void stream_binary(char stream_file_name[]){
   turn_streaming_off();
   turn_recording_off();
   char line[BUFFER_SIZE];
+  Serial.flush();
   if (!binFile.isOpen()) close_binFile();
   //Serial.println(stream_file_name);
   if (sd.exists(stream_file_name)){
@@ -519,7 +487,8 @@ void stream_binary(char stream_file_name[]){
       for (uint32_t i = 0; i < sizeof(line); i++)
       {
         Serial.write(line[i]);
-      }  
+      }
+      delay(1);  
     }
     binFile.close();
     setup();
@@ -871,7 +840,28 @@ void myLongPressFunction(){
 
 
 void setup(void) {
+  Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 100000);
+  if (atecc.begin() == true)
+  {
+    Serial.println("Successful wakeUp(). I2C connections are good.");
+  }
+  else
+  {
+    Serial.println("Device not found. Check wiring.");
+    while (1); // stall out forever
+  }
+  atecc.readConfigZone(false); // produces a serial number
+  
+  atecc.generatePublicKey(0,true);
+  
+  Serial.println("Starting CAN logger.");
 
+  // The server public key should already be installed in the ATECC. Why do we have to do this?
+  Serial.println("Load Server Public Key:");
+  if (atecc.loadPublicKey(server_public_key) == false) Serial.println("Failure.");
+  atecc.readPublicKey(true);
+  atecc.ECDH(atecc.storedPublicKey, ECDH_OUTPUT_IN_TEMPKEY,0x0000);
+  
   first_buffer_sent = false;
  
   commandString.reserve(256);
@@ -925,9 +915,17 @@ void setup(void) {
   memcpy(out,init_vector,16); //Load IV
 
   // Add the ATECC Encryption Scheme here and update the value of the encrypted_aeskey
-  memcpy(&encrypted_aeskey,&aeskey,16);
+  Serial.print("Encrypted AES Session Key: ");
+  atecc.AES_ECB(aeskey);
+  memcpy(&encrypted_aeskey[0],&atecc.AES_buffer[0],16);
+  for (int i = 0; i<16; i++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",encrypted_aeskey[i]);
+    Serial.print(hex_digit);
+  }
+  Serial.println();
   
-  Serial.println("Starting CAN logger.");
+ 
 
   Can0.setReportErrors(true);
   Can1.setReportErrors(true);
@@ -1049,14 +1047,14 @@ void write_final_meta_data(){
   }
   
   // Compute Signature here
-  
+  atecc.createSignature(hash);
   Serial.print(",SIG:");
   memcpy(&data_file_contents[data_file_index],",SIG:",5);
   data_file_index+=5;
   
-  for (int n = 0; n < sizeof(signature); n++){
+  for (int n = 0; n < sizeof(atecc.signature); n++){
     char hex_digit[3];
-    sprintf(hex_digit,"%02X",signature[n]);
+    sprintf(hex_digit,"%02X",atecc.signature[n]);
     Serial.print(hex_digit);
     memcpy(&data_file_contents[data_file_index],&hex_digit,2);
     data_file_index+=2;
@@ -1091,6 +1089,18 @@ void write_initial_meta_data(){
   Serial.print(current_file_name);
   memcpy(&data_file_contents[data_file_index],&current_file_name,12);
   data_file_index+=12;
+
+  Serial.print(",SN:");
+  memcpy(&data_file_contents[data_file_index],",SN:",4);
+  data_file_index+=4;
+  for (int n = 0; n < sizeof(atecc.serialNumber); n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",atecc.serialNumber[n]);
+    Serial.print(hex_digit);
+    memcpy(&data_file_contents[data_file_index],&hex_digit,2);
+    data_file_index+=2;
+  }
+
   
   Serial.print(",IV:");
   memcpy(&data_file_contents[data_file_index],",IV:",4);
@@ -1117,9 +1127,9 @@ void write_initial_meta_data(){
   Serial.print(",PUB:");
   memcpy(&data_file_contents[data_file_index],",PUB:",5);
   data_file_index+=5;
-  for (int n = 0; n < sizeof(public_key); n++){
+  for (int n = 0; n < sizeof(atecc.publicKey64Bytes); n++){
     char hex_digit[3];
-    sprintf(hex_digit,"%02X",public_key[n]);
+    sprintf(hex_digit,"%02X",atecc.publicKey64Bytes[n]);
     Serial.print(hex_digit);
     memcpy(&data_file_contents[data_file_index],&hex_digit,2);
     data_file_index+=2;
@@ -1287,11 +1297,6 @@ void loop(void) {
     }
     else if (commandString.equalsIgnoreCase("BAUDRATE")){
       stream_text(data_file_name);
-    }
-    else if (char(commandString[0]) == brand_name[0] && char(commandString[1]) == brand_name[1]){
-      char stream_file_name[13]; 
-      commandString.toCharArray(stream_file_name,13);
-      stream_binary(stream_file_name);     
     }
     else if (commandString.startsWith("ID ")){
       commandString.remove(0,3);

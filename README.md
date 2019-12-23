@@ -1,6 +1,6 @@
 # CAN-Logger-3
 
-An open source data logging system for heavy vehicle networks.
+An open source secure data logging system for heavy vehicle networks.
 
 The docs folder contains schematics, gerber files, and Altium Designer source files. 
 

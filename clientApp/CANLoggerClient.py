@@ -150,7 +150,8 @@ class CANLogger(QMainWindow):
             pass
 
         try:
-            self.ser = serial.Serial(self.comport, timeout=0.1)
+            self.ser = serial.Serial(self.comport, timeout=2)
+            self.ser.set_buffer_size(rx_size = 2147483647, tx_size = 2000)
             self.connected = True
             logger.debug("Connected to Serial Port.")
             self.list_device_files()
@@ -185,22 +186,26 @@ class CANLogger(QMainWindow):
         
         logger.debug("Downloading {} bytes from {}".format(latest_file_size,latest_file_name))    
         if len(latest_file_name) > 4 and latest_file_size > 400:
-            self.ser.timeout = 10
+            #self.ser.timeout = 10
             #send the command to the Logger to download data
             self.ser.write(b'BIN ' + bytes(latest_file_name[:-3]+"txt",'ascii') + b'\n') 
             self.meta_data = self.ser.read(latest_file_size).decode('ascii').split(",")
             
             logger.debug("file meta_data:") 
             logger.debug("{}".format(self.meta_data)) 
-            binfile_size = int(self.meta_data[7].split(":")[1])
+            binfile_size = int(self.meta_data[8].split(":")[1])
             filename = self.meta_data[3]
             logger.debug("Downloading {} bytes of {}".format(binfile_size,filename))
-            time.sleep(1)
-            #self.ser.reset_input_buffer()
-            command = b'BIN ' + bytes(filename.strip(),'ascii') + b'\n'
-            print(command)
-            self.ser.write(command) 
-            self.encrypted_binary = self.ser.read(binfile_size-512)
+            
+            self.ser.reset_input_buffer()
+            self.ser.write(b'BIN ' + bytes(latest_file_name[:-3]+"bin",'ascii') + b'\n')  
+            self.encrypted_binary = b''
+            start_time = time.time()
+            while (len(self.encrypted_binary) <= binfile_size) and (time.time()-start_time < 15):
+                i = max(1, min(2048, self.ser.in_waiting))
+                new_data = self.ser.read(i)
+                self.encrypted_binary += new_data
+                print(len(new_data))
             
             logger.debug("encrypted_binary:") 
             logger.debug("{}...{}".format(self.encrypted_binary[:100],self.encrypted_binary[-100:]))     
