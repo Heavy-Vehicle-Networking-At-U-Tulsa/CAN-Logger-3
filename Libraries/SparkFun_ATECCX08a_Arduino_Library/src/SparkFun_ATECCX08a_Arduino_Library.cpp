@@ -858,17 +858,13 @@ boolean ATECCX08A::signTempKey(uint16_t slot, bool debug)
       signature[i] = inputBuffer[i + 1];
     }
   if (debug){
-    Serial.println();
-    Serial.println("uint8_t signature[64] = {");
+    Serial.print("signature = [");
     for (int i = 0; i < sizeof(signature) ; i++)
     {
-    Serial.print("0x");
-    if((signature[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
-      Serial.print(signature[i], HEX);
-      if(i != 63) Serial.print(", ");
-    if((63-i) % 16 == 0) Serial.println();
+      Serial.printf("0x%02X",signature[i]);
+      if (i != 63) Serial.print(", ");
     }
-  Serial.println("};");
+    Serial.println("]");
   }
 	return true;
   }
