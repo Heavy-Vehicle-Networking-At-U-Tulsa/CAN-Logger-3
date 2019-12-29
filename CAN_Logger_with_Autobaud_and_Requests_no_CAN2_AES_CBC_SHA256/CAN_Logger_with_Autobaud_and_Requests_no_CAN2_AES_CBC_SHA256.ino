@@ -476,22 +476,16 @@ void delete_file(char delete_file_name[]){
 void stream_binary(char stream_file_name[]){
   turn_streaming_off();
   turn_recording_off();
-  char line[BUFFER_SIZE];
-  Serial.flush();
-  if (!binFile.isOpen()) close_binFile();
-  //Serial.println(stream_file_name);
+  uint8_t line[BUFFER_SIZE];
   if (sd.exists(stream_file_name)){
     binFile.open(stream_file_name, O_READ);
-    while (binFile.read(line, sizeof(line)) > 0) 
+    digitalWrite(YELLOW_LED,HIGH);
+    while (binFile.read(line, BUFFER_SIZE) > 0) 
     {
-      for (uint32_t i = 0; i < sizeof(line); i++)
-      {
-        Serial.write(line[i]);
-      }
-      delay(1);  
+      Serial.write(line,BUFFER_SIZE);
     }
+    digitalWrite(YELLOW_LED,LOW);
     binFile.close();
-    setup();
   }
   else
   {

@@ -11,10 +11,15 @@ def lambdaResponse(statusCode,
                    body,
                    headers={},
                    isBase64Encoded=False):
+    """
+    A utility to wrap the lambda function call returns with the right status code,
+    body, and switches.
+    """
+
     # Make sure the body is a json object
     if not isinstance(body, str):
         body = json.dumps(body)
-    # Make sure te content type is json
+    # Make sure the content type is json
     header = headers
     header["Content-Type"] = "application/json"  
     response = {
@@ -23,6 +28,7 @@ def lambdaResponse(statusCode,
         "headers": header,
         "body": body
     }
+    # These print statement create entries in cloudwatch
     print("Response")
     for k, v in response.items():
         print("{}: {}".format(k, repr(v)[:100]))

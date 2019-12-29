@@ -1,14 +1,18 @@
 import json
 import os
 import time
-import jwt
-from jwt import ExpiredSignatureError, InvalidIssuerError, InvalidIssuedAtError, DecodeError
+import jwkest
+from jwkest.jwk import load_jwks_from_url, load_jwks
+from jwkest.jws import JWS
 from passlib.hash import pbkdf2_sha256 as passwd
 import boto3
 import boto3.session as session
 from botocore.exceptions import ClientError
 
-region = 'us-east-2'
+jws = JWS()
+
+AWS_REGION = "us-east-2"
+USER_POOL_ID = "us-east-2_fiNazAdBU"
 
 def verifyToken(token):
     """
