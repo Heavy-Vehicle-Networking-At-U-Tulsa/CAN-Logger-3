@@ -54,6 +54,9 @@ import jwkest
 from jwkest.jwk import load_jwks_from_url, load_jwks
 from jwkest.jws import JWS
 
+sys.path.insert(1, '../serverless')
+from utils import verify_meta_data_text
+
 import serial
 import serial.tools.list_ports
 
@@ -158,15 +161,13 @@ class CANLogger(QMainWindow):
 
         self.setWindowTitle("CAN Logger Client Application")
         
-        self.signed_file_metadata = None
+        self.meta_data_dict       = None
         self.access_token         = None
         self.identity_token       = None
         self.refresh_token        = None
         self.connected            = False
         self.encrypted_log_file   = None
 
-        if not self.load_tokens():
-            self.login()
         
         initial_message = QLabel("Connect to a CAN Logger to see files (Ctrl+O).")
         self.grid_layout = QGridLayout()
@@ -176,6 +177,8 @@ class CANLogger(QMainWindow):
         self.setCentralWidget(main_widget)
 
         self.show() 
+        if not self.load_tokens():
+            self.login()
 
     def format_sd_card(self):
         QMessageBox.confirm(self,"Are you sure?","Formatting will erase all the data on the SD Card. ")
@@ -220,49 +223,6 @@ class CANLogger(QMainWindow):
                 self.connected = False
                 return False
     
-    def verify_meta_data_text(self,raw_line):
-        # The data from the serial port comes in as raw bytes, but they are ascii encoded
-        parts =  raw_line.split(b',TXT-SHA:')
-        logger.debug("Parts after split on TXT-SHA:")
-        logger.debug(parts)
-        try:
-            meta_data_bytes = parts[0]
-            sha_and_signature = parts[1].split(b',SIG:')
-            text_sha = sha_and_signature[0]
-            sha_signature = sha_and_signature[1]
-            logger.debug("Bytes to Verify: {}".format(meta_data_bytes))
-            logger.debug("Claimed SHA-256: {}".format(text_sha))
-            logger.debug("Claimed Signature: {}".format(sha_signature))
-            
-            m = hashlib.sha256()
-            m.update(meta_data_bytes)
-            caclulated_sha = m.hexdigest().upper()
-            sha_hex = m.digest()
-            logger.debug("Calculated SHA_256: {}".format(caclulated_sha))
-            if caclulated_sha != text_sha.decode('ascii'):
-                logger.debug("SHA 2-6 Digests in text file doesn't match the calculated value.")
-                return False
-
-            public_key_bytes = bytearray.fromhex(meta_data_bytes.split(b'PUB:')[1][:128].decode('ascii'))
-            signature_hex = bytearray.fromhex(sha_signature[:128].decode('ascii'))
-            
-            try:
-                vk = VerifyingKey.from_string(bytes(public_key_bytes), curve=NIST256p)
-            except:
-                logger.debug(traceback.format_exc())
-                return False
-            try:
-                vk.verify_digest(signature_hex, sha_hex)
-                logger.debug("good signature")
-                return True
-            except BadSignatureError:
-                logger.debug("BAD SIGNATURE")
-                return False
-                
-        except IndexError:
-            logger.debug(traceback.format_exc())
-            return False
-    
     def download_file(self):
         row = self.device_file_table.currentRow()
         filename = str(self.device_file_table.item(row, 3).text()) # select the filename entry
@@ -294,6 +254,25 @@ class CANLogger(QMainWindow):
         logger.debug("Downloaded {} bytes of {}".format(downloaded_size,expected_size))
         okPressed = QMessageBox.question(self,"Downloaded Bytes","Do you want to save the following {} bytes?\n{}\n...\n{}".format(downloaded_size,ret_val[:50],ret_val[-50:]))
         self.encrypted_log_file = ret_val
+    
+    def load_meta_data(self):
+        self.meta_data_dict = {}
+        row = self.device_file_table.currentRow()
+        self.meta_data_dict["datetime"] = str(self.device_file_table.item(row, 0).text()) #
+        self.meta_data_dict["CAN0"] = int(self.device_file_table.item(row, 1).text()) # select the filename entry
+        self.meta_data_dict["CAN1"] = int(self.device_file_table.item(row, 2).text()) # select the filename entry
+        self.meta_data_dict["filename"] = str(self.device_file_table.item(row, 3).text()) #
+        self.meta_data_dict["serial_num"] = str(self.device_file_table.item(row, 4).text()) #
+        self.meta_data_dict["init_vect"] = base64.b64encode(bytearray.fromhex(str(self.device_file_table.item(row, 5).text()))).decode('ascii') #string of base64 encoded bytes
+        self.meta_data_dict["session_key"] = base64.b64encode(bytearray.fromhex(str(self.device_file_table.item(row, 6).text()))).decode('ascii') #string of base64 encoded bytes
+        self.meta_data_dict["device_public_key"] = base64.b64encode(bytearray.fromhex(str(self.device_file_table.item(row, 7).text()))).decode('ascii') #string of base64 encoded bytes
+        self.meta_data_dict["filesize"] = int(self.device_file_table.item(row, 8).text()) #
+        self.meta_data_dict["binary_sha_digest"] = base64.b64encode(bytearray.fromhex(str(self.device_file_table.item(row, 9).text()))).decode('ascii') #string of base64 encoded bytes
+        self.meta_data_dict["text_sha_digest"] = base64.b64encode(bytearray.fromhex(str(self.device_file_table.item(row, 10).text()))).decode('ascii') #string of base64 encoded bytes
+        self.meta_data_dict["signature"] = base64.b64encode(bytearray.fromhex(str(self.device_file_table.item(row, 11).text()))).decode('ascii') #string of base64 encoded bytes
+        self.meta_data_dict["base64"] = str(self.device_file_table.item(row, 13).text())
+        for k,v in self.meta_data_dict.items():
+            logger.debug("{}: {}".format(k,v))
 
     def list_device_files(self):
         while not self.connected:
@@ -339,13 +318,15 @@ class CANLogger(QMainWindow):
                          "Binary File SHA-256 Hash Digest",
                          "Text File SHA-256 Hash Digest",
                          "Digital Signature of Text SHA Digest",
-                         "Verification"]
+                         "Verification",
+                         "Base64 encoded meta data"]
         NUM_COLS = len(header_labels)
         NUM_ROWS = len(file_meta_data_list)
         self.device_file_table = QTableWidget(NUM_ROWS,NUM_COLS,self)
         self.device_file_table.setHorizontalHeaderLabels(header_labels)
         self.device_file_table.setSelectionBehavior(QTableView.SelectRows);
         self.device_file_table.doubleClicked.connect(self.download_file)
+        self.device_file_table.itemSelectionChanged.connect(self.load_meta_data)
         self.device_file_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.grid_layout.addWidget(self.device_file_table ,0,0,1,1)
         row = 0
@@ -365,9 +346,10 @@ class CANLogger(QMainWindow):
                 character = self.serial_queue.get()
                 ret_val += character    
             bytes_in_file = ret_val[:latest_file_size]
-            if self.verify_meta_data_text(bytes_in_file):
+            if verify_meta_data_text(bytes_in_file):
                 self.meta_data = bytes_in_file.decode('ascii').split(",")
                 self.meta_data.append("Verified")
+                self.meta_data.append(base64.b64encode(bytes_in_file).decode('ascii'))
                 logger.debug("file meta_data has {} elements:".format(len(self.meta_data))) 
                 logger.debug("{}".format(self.meta_data))
                 # Insert the time first, because it has a bunch of colons 
@@ -571,6 +553,10 @@ class CANLogger(QMainWindow):
             return False
 
     def upload_file(self):
+        if self.meta_data_dict is None:
+            QMessageBox.warning(self,"Select File","Please connect a device and select a file.")
+            return
+
         if not self.decode_jwt():
             message = "A valid webtoken is not available to upload."
             logger.warning(message)
@@ -578,12 +564,11 @@ class CANLogger(QMainWindow):
             return
 
         url = API_ENDPOINT + "upload"
-        data = {"meta_data":self.signed_file_metadata}
         header = {}
         header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
         header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
         try:
-            r = requests.post(url, json=data, headers=header)
+            r = requests.post(url, data=self.meta_data_dict["base64"], headers=header)
         except requests.exceptions.ConnectionError:
             QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
             return
@@ -591,6 +576,21 @@ class CANLogger(QMainWindow):
         if r.status_code == 200: #This is normal return value
             response_dict = r.json()
             logger.debug(response_dict['message'])
+            logger.debug(response_dict['meta_data_bytes'])
+            logger.debug(response_dict['verified'])
+            logger.debug(response_dict['upload_link'])
+            if self.encrypted_log_file is not None:
+
+
+                r1 = requests.post( response_dict['upload_link']['url'], 
+                                    data=response_dict['upload_link']['fields'], 
+                                    files={'file': self.encrypted_log_file}
+                                   )
+                logger.debug(r1.status_code)
+                logger.debug(r1.text)
+                if r1.status_code == 204:
+                    QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nKey: {}".format(response_dict['upload_link']['fields']['key']))
+                                
         else: #Something went wrong
             logger.debug(r.text)
             QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))

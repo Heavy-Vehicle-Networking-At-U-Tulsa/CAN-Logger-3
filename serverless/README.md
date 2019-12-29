@@ -79,6 +79,9 @@ Components Core: 1.1.2
 Components CLI: 1.4.0
 ```
 
+Since we are writing in Python, please be sure to include the Requirements.
+`sls plugin install -n serverless-python-requirements`
+
 ## Getting a Serverless Project Started
 Be sure to have completed the installation so AWS-CLI, NodeJS, and Serverless are installed. Also, be sure your environment variables have the AWS credentials for the serverless-admin role.
 

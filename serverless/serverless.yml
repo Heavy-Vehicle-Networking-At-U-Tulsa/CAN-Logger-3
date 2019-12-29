@@ -178,22 +178,22 @@ resources:
     logfileDB:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: CanLogFileMetaData
+        TableName: CanLogMetaData
         AttributeDefinitions:
           - AttributeName: id
             AttributeType: S
-          - AttributeName: logger
+          - AttributeName: digest
             AttributeType: S
         KeySchema:
           - AttributeName: id
             KeyType: HASH
-          - AttributeName: logger
+          - AttributeName: digest
             KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
         GlobalSecondaryIndexes:
-          - IndexName: logger-index
+          - IndexName: sha-index
             KeySchema:
-              - AttributeName: logger
+              - AttributeName: digest
                 KeyType: HASH
             Projection:
               ProjectionType: ALL
@@ -238,6 +238,7 @@ resources:
           - arn:aws:iam::aws:policy/AmazonS3FullAccess
           - arn:aws:iam::aws:policy/SecretsManagerReadWrite
           - arn:aws:iam::aws:policy/AWSKeyManagementServicePowerUser
+          - arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess 
         Policies:
           - PolicyName: LambdaLogging
             PolicyDocument:
@@ -290,3 +291,9 @@ resources:
           - Arn
       Export:
         Name: CognitoUserPoolArn
+plugins:
+  - serverless-python-requirements
+custom:
+  pythonRequirements:
+    zip: false
+    slim: false
