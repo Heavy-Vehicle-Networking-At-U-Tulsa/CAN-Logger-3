@@ -159,6 +159,13 @@ class CANLogger(QMainWindow):
         logger_menu.addAction(format_logger)
         file_toolbar.addAction(format_logger)
 
+        get_key = QAction(QIcon(r'icons/get_key.png'), 'Get &Key', self)
+        get_key.setShortcut('Ctrl+K')
+        get_key.setStatusTip('Decrypt a session key.')
+        get_key.triggered.connect(self.get_session_key)
+        logger_menu.addAction(get_key)
+        file_toolbar.addAction(get_key)
+
         self.setWindowTitle("CAN Logger Client Application")
         
         self.meta_data_dict       = None
@@ -179,6 +186,29 @@ class CANLogger(QMainWindow):
         self.show() 
         if not self.load_tokens():
             self.login()
+
+    def get_session_key(self):
+        url = API_ENDPOINT + "auth"
+        header = {}
+        header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
+        header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
+        try:
+            data = {'serial_number':self.meta_data_dict["serial_num"],
+                'file_uid':self.meta_data_dict["filename"],
+                'session_key':self.meta_data_dict["session_key"],
+               }
+        except TypeError:
+            logger.warning("Must have data to get key.")
+            return
+        try:
+            r = requests.post(url, data=data, headers=header)
+        except requests.exceptions.ConnectionError:
+            QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
+            return
+        print(r.status_code)
+        if r.status_code == 200: #This is normal return value
+            response_dict = r.json()
+            
 
     def format_sd_card(self):
         QMessageBox.confirm(self,"Are you sure?","Formatting will erase all the data on the SD Card. ")

@@ -72,15 +72,25 @@ provider:
 functions:
   hello:
     handler: handler.hello
-    awsKmsKeyArn: arn:aws:kms:us-east-2:096696900030:key/161b7817-f9b5-444a-87dc-a4d5943f7c1e
     events:
       - http:
           path: hello
           method: get
           private: true
+  auth:
+    handler: auth.auth
+    awsKmsKeyArn: arn:aws:kms:us-east-2:096696900030:key/161b7817-f9b5-444a-87dc-a4d5943f7c1e
+    events:
+      - http:
+          path: auth
+          method: post
+          private: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer  
   upload:
     handler: handler.upload
-    awsKmsKeyArn: arn:aws:kms:us-east-2:096696900030:key/161b7817-f9b5-444a-87dc-a4d5943f7c1e
     events:
       - http:
           path: upload

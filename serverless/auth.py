@@ -1,162 +1,62 @@
 import json
-import os
+import base64
 import time
+
 import jwkest
 from jwkest.jwk import load_jwks_from_url, load_jwks
 from jwkest.jws import JWS
 from passlib.hash import pbkdf2_sha256 as passwd
+
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import utils
+
 import boto3
 import boto3.session as session
 from botocore.exceptions import ClientError
+
+from utils import lambdaResponse as response
 
 jws = JWS()
 
 AWS_REGION = "us-east-2"
 USER_POOL_ID = "us-east-2_fiNazAdBU"
 
-def verifyToken(token):
-    """
-    Decodes a java web token. If decoding is successful (i.e. the token is valid), then return valid:True otherwise return valid:False
-    """
-    try:
-        verified_token = jwt.decode(token, os.environ['JWTSecret'], algorithms=['HS256'], issuer="systems-cyber")
-    except (ExpiredSignatureError, InvalidIssuerError, InvalidIssuedAtError, DecodeError) as e:  # noqa: F841
-        print("Token verification failed")
-        return {"valid": False}
-    print("verfied Token: {}".format(verified_token))
-    return = {
-        "email": verified_token["sub"],
-        "scope": verified_token["scope"],
-        "token": verified_token,
-        "valid": True
-    }
-
-def verifyPass(email, password):
-    """
-    Users with an e-mail and password can be validated.
-    """
-    client = dbManagement.getDynamoDBClient()
-    client = boto3.resource('dynamodb', region_name=region)
-    table = client.Table(CANLoggerUsers)
-    resp = table.get_item(Key={'email': email})
-    if 'Item' in resp:
-        print("Found User {}".format(email))
-        user = resp['Item']
-        try:
-            valid = passwd.verify(password, user['passwordHash'])
-            if valid:
-                return {"token": get_token(email, ["login:user"]),
-                        "valid": True
-                        }
-            else:
-                print("Password did not validate.")
-        except:
-            print("There was an issue when verifying the password.")
-    else:
-        print("User not found. Looking for {}".format(email))
-    return {"valid": False}
-
-
 def auth(event, context):
     """
-    Issue a java web token (JWT) based on a valid password.
-    The expected body of the call is
-    {
-        'username': someone@example.com,
-        'password': aValid8CharacterPassword
-    }
-    Passwords are hidden because the api calls are done using TLS
-
+    Return the plain text session key used to encrypt the CAN Data File
+    
+    event dictionary input elements:
+     - authorized user email 
+     - CAN Logger Serial Number
+     - CAN Logger File Unique ID (assigned when uploaded to S3)
+     - CAN Logger File Session key
+    
+    Prerequisites:
+    The CAN Logger must be provisioned with a securely stored key tied to the
+    serial number.
     """
+    return response(200, json.dumps({"event": event},indent=4))
     body = json.loads(event['body'])
     try: 
-        assert 'username' in body
-        assert 'password' in body
+        assert 'serial_number' in body
+        assert 'file_uid' in body
+        assert 'session_key' in body
     except AssertionError:
         return response(400, "Missing required parameters.")
-    verify_return = verifyPass(body['username'], body['password'])
-    valid = verify_return['valid']  
-    if valid:
-        token = verify_return['token']
-        return response(200, json.dumps({"token": token}))
-    else:
-        return response(403, "Forbidden: Invalid Username or Password.")
+    
+    auth_token = event['request_context']
+    if not verifyToken(auth_token):
+        return response(400, "auth_token")
+
+    return response(200, json.dumps({"event": event}))
     
 
-def refresh(event, context):
-    user = event['requestContext']['authorizer']['sub']
-    if user == 'invalidUser':
-        return response(403, "Forbidden")
-    scope = json.loads(event['requestContext']['authorizer']['scope'])
-    token = get_token(user, scope)
-    return response(200, json.dumps({"token": token}))
-
-
-def get_token(email, scope):
+def verifyToken(token):
     """
-    Returns a valid JWT token based on the email/username and scope
+    Decodes a JWS token. If decoding is successful (i.e. the token is valid), then return valid:True otherwise return valid:False
     """
-    assert isinstance(scope, list)
-    token = {
-        "iss": "systems-cyber",
-        "exp": time.time()+300, #update to last 300 Seconds
-        "iat": time.time(),
-        "sub": email,
-        "scope": scope
-    }
-    return jwt.encode(token, os.environ['JWTSecret'], algorithm='HS256').decode('ascii')
-
-
-def parseTokenPolicy(principalId, effect, resource, scope=[], token={}):
-    policyDocument = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Action": "execute-api:Invoke",
-                "Effect": effect,
-                "Resource": "*"
-            }
-        ]
-    }
-    context = {
-        "sub": principalId,
-    }
-    if token:
-        context["token"] = json.dumps(token)
-    if scope:
-        context["scope"] = json.dumps(scope)
-    policy = {
-        "principalId": principalId,
-        "policyDocument": policyDocument,
-        "context": context
-    }
-    return policy
-
-
-def validateAuth(event, context):
-    """
-    A custom authorizer for AWS API Gateway
-    must include as a header:
-    Authorization: Bearer firstpartofJWT.middleofJWT.lastpartofJWT
-    """
-    if(event['type'] == "TOKEN"):
-        token = event['authorizationToken'].split()
-        valid = False
-        if(token[0] == "Bearer"):
-            parsedAuth = verifyToken(token[1])
-            valid = parsedAuth['valid']
-        if(valid):
-            print("Token Valid")
-            return parseTokenPolicy(parsedAuth['email'],
-                                    'Allow',
-                                    event["methodArn"],
-                                    parsedAuth["scope"],
-                                    parsedAuth["token"])
-        else:
-            return parseTokenPolicy('invalidUser', 
-                                    'Deny', 
-                                    event["methodArn"])
-    else:
-        return parseTokenPolicy('invalidUser', 
-                                'Deny', 
-                                event["methodArn"])
+    return True
