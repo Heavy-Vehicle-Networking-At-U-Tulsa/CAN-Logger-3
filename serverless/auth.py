@@ -5,7 +5,6 @@ import time
 import jwkest
 from jwkest.jwk import load_jwks_from_url, load_jwks
 from jwkest.jws import JWS
-from passlib.hash import pbkdf2_sha256 as passwd
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
