@@ -5,10 +5,17 @@ import logging
 from ecdsa import VerifyingKey, BadSignatureError, NIST256p
 import hashlib
 import traceback
-
+import requests
+import jwkest
+from jwkest.jwk import load_jwks_from_url, load_jwks
+from jwkest.jws import JWS
+jws = JWS()
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
+
+AWS_REGION = "us-east-2"
+USER_POOL_ID = "us-east-2_fiNazAdBU"
     
 def verify_meta_data_text(raw_line):
     # The data from the serial port comes in as raw bytes, but they are ascii encoded
@@ -50,6 +57,36 @@ def verify_meta_data_text(raw_line):
             return False
             
     except IndexError:
+        logger.debug(traceback.format_exc())
+        return False
+
+def decode_jwt(token):
+    """
+    Validate and decode the web token from the Amazon Cognito.
+    Stores the public key needed to decrypt the token.
+    Returns 
+    """
+    url="https://cognito-idp.{}.amazonaws.com/{}/.well-known/jwks.json".format(AWS_REGION,USER_POOL_ID)
+    try:
+        r = requests.get(url)
+        logger.debug(r.status_code)
+        key_set = load_jwks(r.text)
+    except:
+        logger.debug(traceback.format_exc())
+        return False
+    try:
+        token_dict = jws.verify_compact(token, keys=key_set)
+        logger.info(token_dict)
+        if token_dict['exp'] < time.time():
+            logger.debug("Token Expired")
+            return False
+        if token_dict['email_verified']:
+            return {"user_id":token_dict['sub'], 
+                    "user_email":token_dict['email']}
+        else:
+            logger.debug("E-mail not verfied.")
+            return False
+    except:
         logger.debug(traceback.format_exc())
         return False
 

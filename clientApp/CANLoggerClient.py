@@ -50,20 +50,16 @@ import random
 import os
 import traceback
 import logging
-import jwkest
-from jwkest.jwk import load_jwks_from_url, load_jwks
-from jwkest.jws import JWS
+
 
 sys.path.insert(1, '../serverless')
-from utils import verify_meta_data_text
+from utils import verify_meta_data_text, decode_jwt
 
 import serial
 import serial.tools.list_ports
 
 from ecdsa import VerifyingKey, BadSignatureError, NIST256p
 import hashlib
-
-jws = JWS()
 
 logger = logging.getLogger()
 logger.addHandler(logging.StreamHandler(sys.stdout))
@@ -159,6 +155,13 @@ class CANLogger(QMainWindow):
         logger_menu.addAction(format_logger)
         file_toolbar.addAction(format_logger)
 
+        provision_logger = QAction(QIcon(r'icons/provision_icon.png'), '&Provision', self)
+        provision_logger.setShortcut('Ctrl+P')
+        provision_logger.setStatusTip('Register important data with the server.')
+        provision_logger.triggered.connect(self.provision)
+        logger_menu.addAction(provision_logger)
+        file_toolbar.addAction(provision_logger)
+
         get_key = QAction(QIcon(r'icons/get_key.png'), 'Get &Key', self)
         get_key.setShortcut('Ctrl+K')
         get_key.setStatusTip('Decrypt a session key.')
@@ -186,6 +189,34 @@ class CANLogger(QMainWindow):
         self.show() 
         if not self.load_tokens():
             self.login()
+    
+    def provision(self):
+        url = API_ENDPOINT + "provision"
+        header = {}
+        header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
+        header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
+        try:
+            data = {'serial_number':self.meta_data_dict["serial_num"],
+                    'device_public_key': self.meta_data_dict["device_public_key"],
+                    'signed_meta_data': self.meta_data_dict["base64"]
+                   }
+        except TypeError:
+            logger.warning("Must have data to get key.")
+            return
+        try:
+            r = requests.post(url, json=data, headers=header)
+        except requests.exceptions.ConnectionError:
+            QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
+            return
+        print(r.status_code)
+        print(r.text)
+        if r.status_code == 200: #This is normal return value
+            server_public_key = r.text
+            print("uint8_t server_public_key[64] = {")
+            for i in range(0,len(server_public_key),2):
+                print("0x{}{},".format(server_public_key[i],server_public_key[i+1]),end='')
+            print("};")
+            # Write a routine to send the server public key to the device as bytes
 
     def get_session_key(self):
         url = API_ENDPOINT + "auth"
@@ -201,13 +232,15 @@ class CANLogger(QMainWindow):
             logger.warning("Must have data to get key.")
             return
         try:
-            r = requests.post(url, data=data, headers=header)
+            r = requests.post(url, json=data, headers=header)
         except requests.exceptions.ConnectionError:
             QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
             return
         print(r.status_code)
+        print(r.text)
         if r.status_code == 200: #This is normal return value
-            response_dict = r.json()
+            session_key = base64.b64decode(r.text)
+            print("session_key = {}".format(session_key))
             
 
     def format_sd_card(self):
@@ -452,10 +485,10 @@ class CANLogger(QMainWindow):
         try:
             with open('password.txt','r') as f:
                 stored_password = f.read()
-            pass_word_saved = True
+            password_saved = True
         except:
             stored_password = ''
-            pass_word_saved = False
+            password_saved = False
         password, okPressed = QInputDialog.getText(self, "Password","Input password for \n{}".format(self.user), QLineEdit.Password, stored_password)
         
         # Validate Input
@@ -465,9 +498,9 @@ class CANLogger(QMainWindow):
             return
         
         if stored_password == password:
-            pass_word_saved == True
+            password_saved == True
         else:
-            pass_word_saved == False
+            password_saved == False
 
         #https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/cognito-idp.html#CognitoIdentityProvider.Client.initiate_auth
         post_data={
@@ -500,8 +533,8 @@ class CANLogger(QMainWindow):
                 json.dump(self.identity_token,fp)
             self.refresh_token = response_data["AuthenticationResult"]["RefreshToken"]
             self.load_tokens()
-            self.decode_jwt()
-            if not pass_word_saved:
+
+            if not (password_saved and username_saved):
                 _password, okPressed = QInputDialog.getText(self, "Save Password","DANGER: Do you want to save your clear text username and password for \n{}? Press OK to save.".format(self.user), QLineEdit.Password, password)
                 if okPressed:
                     with open('password.txt','w') as f:
@@ -524,63 +557,17 @@ class CANLogger(QMainWindow):
                 self.identity_token = json.load(fp)
             with open(ACCESS_TOKEN_NAME,'r') as fp2:
                 self.access_token = json.load(fp2)
-            return self.decode_jwt(display = True)
+            user_token = decode_jwt(self.identity_token)
+            for k,v in user_token.items():
+                logger.debug("{}: {}".format(k,v))
+            return 
         except:
             logger.debug(traceback.format_exc())
             self.access_token = None
             self.identity_token = None
             return False
 
-    def decode_jwt(self,display=False):
-        """
-        Validate and decode the web token from the Amazon Cognito.
-        Stores the public key needed to decrypt the token.
-        Returns 
-        """
-        if self.access_token is None:
-            self.login()
-        if self.identity_token is None:
-            self.login()
-
-        url="https://cognito-idp.{}.amazonaws.com/{}/.well-known/jwks.json".format(AWS_REGION,USER_POOL_ID)
-        try:
-            r = requests.get(url)
-            logger.debug(r.status_code)
-            key_set = load_jwks(r.text)
-            with open("keys.jwks", "w") as f:
-                f.write(r.text)  
-        except:
-            logger.debug(traceback.format_exc())
-            try:
-                with open("keys.jwks") as fp:
-                    key_set = load_jwks(fp.read())
-            except:
-                message = "There is no local public key for the Authorization. Please connect to the Internet and try again." 
-                message+="\n"+traceback.format_exc()
-                logger.warning(message)
-                QMessageBox.warning(self,"No Public Key",message)
-                return False
-        try:
-            plain_text = jws.verify_compact(self.access_token, keys=key_set)
-            logger.debug("\nAccess Token:")
-            logger.debug(plain_text)
-
-            plain_text_dict = jws.verify_compact(self.identity_token, keys=key_set)
-            if display:
-                message = 'Congratulations, the following token has been verified.\nID Token:\n'
-                for k,v, in plain_text_dict.items():
-                    message += "{}: {}\n".format(k,v)
-                logger.debug(message)
-                QMessageBox.information(self,"ID Token",message)
-            self.user_id = plain_text_dict['sub']
-            self.user_email = plain_text_dict['email']
-            return True
-        except:
-            message = "There was an issue in decoding and verifying the web token." 
-            message+="\n"+traceback.format_exc()
-            logger.warning(message)
-            QMessageBox.warning(self,"Invalid Token",message)
-            return False
+   
 
     def upload_file(self):
         if self.meta_data_dict is None:
@@ -597,6 +584,7 @@ class CANLogger(QMainWindow):
         header = {}
         header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
         header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
+        logger.debug("Using the following header:\n{}".format(header))
         try:
             r = requests.post(url, data=self.meta_data_dict["base64"], headers=header)
         except requests.exceptions.ConnectionError:
