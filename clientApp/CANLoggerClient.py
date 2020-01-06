@@ -60,6 +60,8 @@ import serial.tools.list_ports
 
 from ecdsa import VerifyingKey, BadSignatureError, NIST256p
 import hashlib
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
 
 logger = logging.getLogger()
 logger.addHandler(logging.StreamHandler(sys.stdout))
@@ -177,8 +179,10 @@ class CANLogger(QMainWindow):
         self.refresh_token        = None
         self.connected            = False
         self.encrypted_log_file   = None
+        self.session_key          = None
+        self.encrypted_log_file   = None
 
-        
+
         initial_message = QLabel("Connect to a CAN Logger to see files (Ctrl+O).")
         self.grid_layout = QGridLayout()
         self.grid_layout.addWidget(initial_message,0,0,1,1)
@@ -239,13 +243,34 @@ class CANLogger(QMainWindow):
         print(r.status_code)
         print(r.text)
         if r.status_code == 200: #This is normal return value
-            session_key = base64.b64decode(r.text)
-            print("session_key = {}".format(session_key))
-            
+            self.session_key = base64.b64decode(r.text)
+            print("session_key = {}".format(self.session_key))
+            QMessageBox.information(self,"Session Key","The Session Key was recovered from the secure server.")
+            self.download_file()
+            self.decrypt_file()
+        else:
+            QMessageBox.information(self,"Server Return","The server returned a status code {}.\n{}".format(r.status_code,r.text))  
 
     def format_sd_card(self):
         QMessageBox.confirm(self,"Are you sure?","Formatting will erase all the data on the SD Card. ")
     
+    def decrypt_file(self):
+        if self.session_key is None:
+            logger.debug("Decryption Needs a Session Key")
+        # Calculate SHA of data
+        # compare SHA If SHA is the same, Proceed
+        logger.debug(self.meta_data_dict["init_vect"])
+        iv = base64.b64decode(self.meta_data_dict["init_vect"])
+
+        cipher = Cipher(algorithms.AES(self.session_key), 
+                        modes.CBC(iv), 
+                        backend=default_backend())
+        decryptor = cipher.decryptor()
+        self.decrypted_log = decryptor.update(self.encrypted_log_file) + decryptor.finalize()
+        logger.debug("Decrypted Log: {}".format(self.decrypted_log[:100]))
+        logger.debug(len(self.decrypted_log))
+
+
     def connect_logger_by_usb(self):
         items =[] 
         for device in serial.tools.list_ports.comports():
