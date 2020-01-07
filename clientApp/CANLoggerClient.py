@@ -239,6 +239,7 @@ class CANLogger(QMainWindow):
             return
         except KeyError:
             logger.warning("Must upload file first.")
+            return
         try:
             r = requests.post(url, json=data, headers=header)
         except requests.exceptions.ConnectionError:
@@ -358,7 +359,6 @@ class CANLogger(QMainWindow):
         else:
             logger.debug("Mismatch of SHA-256 digests. Log File is not authenticated.")
 
-        okPressed = QMessageBox.question(self,"Downloaded Bytes","Do you want to save the following {} bytes?\n{}\n...\n{}".format(downloaded_size,ret_val[:50],ret_val[-50:]))
         
     
     def load_meta_data(self):
@@ -636,22 +636,19 @@ class CANLogger(QMainWindow):
         print(r.status_code)
         if r.status_code == 200: #This is normal return value
             response_dict = r.json()
-            logger.debug(response_dict['message'])
-            logger.debug(response_dict['meta_data_bytes'])
-            logger.debug(response_dict['verified'])
             logger.debug(response_dict['upload_link'])
-            if self.encrypted_log_file is not None:
+            if self.encrypted_log_file is None:
+                self.download_file()
 
-
-                r1 = requests.post( response_dict['upload_link']['url'], 
-                                    data=response_dict['upload_link']['fields'], 
-                                    files={'file': self.encrypted_log_file}
-                                   )
-                logger.debug(r1.status_code)
-                logger.debug(r1.text)
-                if r1.status_code == 204:
-                    self.meta_data_dict['file_uid']=response_dict['upload_link']['fields']['key']
-                    QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nKey: {}".format(self.meta_data_dict['file_uid']))
+            r1 = requests.post( response_dict['upload_link']['url'], 
+                                data=response_dict['upload_link']['fields'], 
+                                files={'file': self.encrypted_log_file}
+                               )
+            logger.debug(r1.status_code)
+            logger.debug(r1.text)
+            if r1.status_code == 204:
+                self.meta_data_dict['file_uid']=response_dict['upload_link']['fields']['key']
+                QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nKey: {}".format(self.meta_data_dict['file_uid']))
                                 
         else: #Something went wrong
             logger.debug(r.text)
