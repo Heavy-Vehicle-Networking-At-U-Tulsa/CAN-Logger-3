@@ -228,13 +228,17 @@ class CANLogger(QMainWindow):
         header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
         header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
         try:
-            data = {'serial_number':self.meta_data_dict["serial_num"],
-                'file_uid':self.meta_data_dict["filename"],
-                'session_key':self.meta_data_dict["session_key"],
+            data = {'serial_number': self.meta_data_dict["serial_num"],
+                'file_uid': self.meta_data_dict['file_uid'],
+                'session_key': self.meta_data_dict["session_key"],
+                'digest': base64.b64decode(self.meta_data_dict["binary_sha_digest"]).hex().upper()
                }
+            logger.debug(data)
         except TypeError:
             logger.warning("Must have data to get key.")
             return
+        except KeyError:
+            logger.warning("Must upload file first.")
         try:
             r = requests.post(url, json=data, headers=header)
         except requests.exceptions.ConnectionError:
@@ -252,22 +256,23 @@ class CANLogger(QMainWindow):
             QMessageBox.information(self,"Server Return","The server returned a status code {}.\n{}".format(r.status_code,r.text))  
 
     def format_sd_card(self):
-        QMessageBox.confirm(self,"Are you sure?","Formatting will erase all the data on the SD Card. ")
+        QMessageBox.question(self,"Are you sure?","Formatting will erase all the data on the SD Card. ")
     
     def decrypt_file(self):
         if self.session_key is None:
             logger.debug("Decryption Needs a Session Key")
         # Calculate SHA of data
         # compare SHA If SHA is the same, Proceed
-        logger.debug(self.meta_data_dict["init_vect"])
+        #logger.debug(self.meta_data_dict["init_vect"])
         iv = base64.b64decode(self.meta_data_dict["init_vect"])
-
+        #Change this. The key is hard coded for testing
+        #self.session_key = bytearray.fromhex('CB3944D1881FB2A0AFF350D51FB0D802')
         cipher = Cipher(algorithms.AES(self.session_key), 
                         modes.CBC(iv), 
                         backend=default_backend())
         decryptor = cipher.decryptor()
         self.decrypted_log = decryptor.update(self.encrypted_log_file) + decryptor.finalize()
-        logger.debug("Decrypted Log: {}".format(self.decrypted_log[:100]))
+        logger.debug("Decrypted Log: {}".format(self.decrypted_log[:1024]))
         logger.debug(len(self.decrypted_log))
 
 
@@ -340,8 +345,21 @@ class CANLogger(QMainWindow):
             logger.debug(traceback.format_exc())
         downloaded_size = len(ret_val)
         logger.debug("Downloaded {} bytes of {}".format(downloaded_size,expected_size))
-        okPressed = QMessageBox.question(self,"Downloaded Bytes","Do you want to save the following {} bytes?\n{}\n...\n{}".format(downloaded_size,ret_val[:50],ret_val[-50:]))
         self.encrypted_log_file = ret_val
+        
+        downloaded_bin_hash = hashlib.sha256(self.encrypted_log_file).digest()
+        logger.debug("Calculated Hash:\n{}".format(downloaded_bin_hash))
+
+        stored_hash = base64.b64decode(self.meta_data_dict["binary_sha_digest"])
+        logger.debug("Stored Hash:\n{}".format(stored_hash))
+
+        if downloaded_bin_hash == stored_hash:
+            logger.debug("SHA-256 digests match. Log File is authenticate.")
+        else:
+            logger.debug("Mismatch of SHA-256 digests. Log File is not authenticated.")
+
+        okPressed = QMessageBox.question(self,"Downloaded Bytes","Do you want to save the following {} bytes?\n{}\n...\n{}".format(downloaded_size,ret_val[:50],ret_val[-50:]))
+        
     
     def load_meta_data(self):
         self.meta_data_dict = {}
@@ -599,7 +617,7 @@ class CANLogger(QMainWindow):
             QMessageBox.warning(self,"Select File","Please connect a device and select a file.")
             return
 
-        if not self.decode_jwt():
+        if not decode_jwt(self.identity_token):
             message = "A valid webtoken is not available to upload."
             logger.warning(message)
             QMessageBox.warning(self,"Invalid Token",message)
@@ -632,7 +650,8 @@ class CANLogger(QMainWindow):
                 logger.debug(r1.status_code)
                 logger.debug(r1.text)
                 if r1.status_code == 204:
-                    QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nKey: {}".format(response_dict['upload_link']['fields']['key']))
+                    self.meta_data_dict['file_uid']=response_dict['upload_link']['fields']['key']
+                    QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nKey: {}".format(self.meta_data_dict['file_uid']))
                                 
         else: #Something went wrong
             logger.debug(r.text)
