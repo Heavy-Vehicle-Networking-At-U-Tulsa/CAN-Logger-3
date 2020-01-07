@@ -188,25 +188,14 @@ resources:
     logfileDB:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: CanLogMetaData
+        TableName: CanLoggerMetaData
         AttributeDefinitions:
-          - AttributeName: id
-            AttributeType: S
           - AttributeName: digest
             AttributeType: S
         KeySchema:
-          - AttributeName: id
-            KeyType: HASH
           - AttributeName: digest
-            KeyType: RANGE
+            KeyType: HASH
         BillingMode: PAY_PER_REQUEST
-        GlobalSecondaryIndexes:
-          - IndexName: sha-index
-            KeySchema:
-              - AttributeName: digest
-                KeyType: HASH
-            Projection:
-              ProjectionType: ALL
     deviceDB:
       Type: AWS::DynamoDB::Table
       Properties:
