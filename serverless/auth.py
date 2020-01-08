@@ -1,18 +1,19 @@
 import json
 import base64
+import time
+
 import boto3
 from botocore.exceptions import ClientError
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import utils
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from utils import lambdaResponse as response
+from utils import get_timestamp
 
 def auth(event, context):
     """
@@ -34,13 +35,10 @@ def auth(event, context):
     # Test to be sure the necessary elements are present
     try: 
         assert 'serial_number' in body
-        assert 'file_uid' in body
-        assert 'session_key' in body
         assert 'digest' in body
     except AssertionError:
         return response(400, "Missing required parameters.")
-    file_uid = body['file_uid']
-
+    
     #Determine the identity of the requester.
     requester_data = event["requestContext"]
     if requester_data["authorizer"]["claims"]["email_verified"]:
@@ -72,26 +70,48 @@ def auth(event, context):
 
     # Decrypt the private key for the device
     f = Fernet(data_key_plaintext)
-    decrypted_pem = f.decrypt(base64.b64decode(item['encrypted_device_pem_key']))
+    decrypted_pem = f.decrypt(base64.b64decode(item['encrypted_server_pem_key']))
     
     #load the serialized key into an object
     server_key = serialization.load_pem_private_key(decrypted_pem, 
                                                     password=None, 
                                                     backend=default_backend())
-    
+
     #Derive shared secret
     shared_secret = server_key.exchange(ec.ECDH(),device_public_key)
-    session_key = base64.b64decode(body["session_key"])
     
-    #use the first 16 bytes (128 bits) of the shared secret to decrypt the data
+    #look up session key
+    table = dbClient.Table("CANLoggerMetaData")
+    try:
+        item = table.get_item( 
+            Key = {'digest': body['digest'],} 
+        ).get('Item')
+    except:
+        return response(400, "File Meta data not availalble. Please upload file.")
+
+    session_key = bytearray.fromhex(item["session_key"])
+    
+    #use the first 16 bytes (128 bits) of the shared secret to decrypt the session key
     cipher = Cipher(algorithms.AES(shared_secret[:16]), 
                                    modes.ECB(), 
                                    backend=default_backend())
     decryptor = cipher.decryptor()
     clear_key = decryptor.update(session_key) + decryptor.finalize()
     
-    print("Decrypted Session Key for {} from IP Address {} for file id {}".format(email,ip_address,file_uid))
-    
+    # set attribution data
+    timestamp = get_timestamp(time.time())
+    access_tuple = (timestamp, email, ip_address)
+    access_list = item['access_list']
+    access_list.append(access_tuple)
+
+    #update the database with the user access details.
+    table.update_item(
+            Key = {'digest': body['digest'],},
+            AttributeUpdates = {
+                'access_list': access_list,
+            },
+        )
+
     #return the base64 encoded AES key for that session.
     return response(200, base64.b64encode(clear_key).decode('ascii'))
     
