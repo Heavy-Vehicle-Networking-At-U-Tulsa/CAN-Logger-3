@@ -272,13 +272,12 @@ bool recording = true;
 //SHA256
 unsigned int hash_counter;
 #define SHA256_BLOCK_SIZE 32          // SHA256 outputs a 32 byte digest
-byte texthash[SHA256_BLOCK_SIZE*2+1];
 byte hash_ciphertext[SHA256_BLOCK_SIZE*2];
 byte hash[SHA256_BLOCK_SIZE];
 byte before_closing_hash[BUFFER_SIZE];
 boolean first_buffer_sent;
 Sha256* sha256Instance;
-#define SHA_UPDATE_SIZE 50
+#define SHA_UPDATE_SIZE 64
 
 uint8_t iv_and_key[32];    
 unsigned char cipher_text[BUFFER_SIZE];
@@ -669,10 +668,10 @@ void close_binFile(){
   micro_timer = 0;
   if (first_buffer_sent){
     if (hash_counter < 8){
-      for (int j = 0; j < (8 - hash_counter)*SHA256_BLOCK_SIZE; j++){
-        before_closing_hash[j]=cipher_text[j+hash_counter*SHA256_BLOCK_SIZE];
+      for (int j = 0; j < (8 - hash_counter)*SHA_UPDATE_SIZE; j++){
+        before_closing_hash[j]=cipher_text[j+hash_counter*SHA_UPDATE_SIZE];
       }
-      sha256Instance->update(before_closing_hash,((8-hash_counter)*SHA256_BLOCK_SIZE));
+      sha256Instance->update(before_closing_hash,((8-hash_counter)*SHA_UPDATE_SIZE));
       //Serial.print("Time to hash the last buffer before closing buffer (us):");
       //Serial.println(micro_timer);
     }
