@@ -1062,7 +1062,9 @@ boolean ATECCX08A::writeProvisionConfig()
   boolean result3;
   boolean result4;
 
-
+  //The write command must send 4 or 32 bytes, so 2 or 16 slots have to be written at a time
+  
+  //These first two will be for private key slot
   // set keytype on slot 0 and 1 to 0x3300
   // Lockable, ECC, PuInfo set (public key always allowed to be generated), contains a private Key
   uint8_t data1[] = {0x33, 0x00, 0x33, 0x00}; // 0x3300 sets the keyconfig.keyType, see datasheet pg 20
@@ -1080,8 +1082,8 @@ boolean ATECCX08A::writeProvisionConfig()
   result3 = write(ZONE_CONFIG, (116 / 4), data3, 4);
 
   // set slot config on slot 10 and 11 
-  //slotconfig for slot 10: is secret, not encryptread, no usage limitation, can be used by all commands, write config never
-  //slotconfig for slot 11: is secret, not encryptread, no usage limitation, can be used by all commands, write config never
+  //slotconfig for slot 10: is not secret, not encryptread, no usage limitation, can be used by all commands, write config never
+  //slotconfig for slot 11: is not secret, not encryptread, no usage limitation, can be used by all commands, write config never
   uint8_t data4[] = {0x00, 0x20, 0x00, 0x20}; 
   result4 = write(ZONE_CONFIG, (40 / 4), data4, 4);
 
