@@ -1,12 +1,15 @@
 #include <sha256.h>
+#define SHA256_BLOCK_SIZE 32
+Sha256* sha256Instance;
 
 void setup() {
+  Serial.begin(115200);
   delay(150);
 
   Serial.println("Test vector for SHA256");
   Serial.println("");
   
-  Sha256* sha256Instance;
+  
   BYTE hash[SHA256_BLOCK_SIZE];
   char texthash[2*SHA256_BLOCK_SIZE+1];
 
