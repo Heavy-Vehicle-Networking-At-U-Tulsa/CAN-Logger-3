@@ -199,14 +199,41 @@ class CANLogger(QMainWindow):
         header = {}
         header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
         header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
+
+        while not self.connected:
+            if self.connect_logger_by_usb() is None:
+                return
+        # empty the queue
+        while not self.serial_queue.empty():
+            self.serial_queue.get_nowait()
+        time.sleep(0.5)
+        self.ser.write(b'KEY\n')
+        time.sleep(0.5)
+        
+        ret_val = b''
+        while not self.serial_queue.empty():
+            character = self.serial_queue.get()
+            ret_val += character
+        
+        response=ret_val.split(b'\n')
+        logger.debug(response)
+        
+
+        
+        serial_number = response[0]
+        device_public_key = response[1]
+        print(base64.b64encode(serial_number))
+        print(base64.b64encode(device_public_key))
+        
+        
         try:
-            data = {'serial_number':self.meta_data_dict["serial_num"],
-                    'device_public_key': self.meta_data_dict["device_public_key"],
-                    'signed_meta_data': self.meta_data_dict["base64"]
+            data = {'serial_number': base64.b64encode(serial_number),
+                    'device_public_key': base64.b64encode(device_public_key),
                    }
         except TypeError:
             logger.warning("Must have data to get key.")
             return
+
         try:
             r = requests.post(url, json=data, headers=header)
         except requests.exceptions.ConnectionError:
@@ -221,6 +248,14 @@ class CANLogger(QMainWindow):
                 print("0x{}{},".format(server_public_key[i],server_public_key[i+1]),end='')
             print("};")
             # Write a routine to send the server public key to the device as bytes
+            '''
+	        while not self.serial_queue.empty():
+	            self.serial_queue.get_nowait()
+	        time.sleep(0.1)
+	        self.ser.write(server_public_key'\n')
+	        time.sleep(0.1)
+			'''	
+		
 
     def get_session_key(self):
         url = API_ENDPOINT + "auth"
