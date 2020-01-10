@@ -30,7 +30,8 @@ def provision(event,context):
     try:
         pub_key = base64.b64decode(body['device_public_key'])
         assert len(pub_key) == 64
-        assert len(body['serial_number']) == 18
+        serial_number = base64.b64decode(body['serial_number'])
+        assert len(serial_number) == 9
     except:
         return response(400, "Parameters are in the incorrect format.")
 
@@ -75,12 +76,12 @@ def provision(event,context):
     server_pem_key_encrypted = f.encrypt(server_pem_key)
 
     can_logger_dict = {
-        'id': body['serial_number'], #72 bit unique id from the ATECC608.
+        'id': serial_number.decode("utf-8"), #72 bit unique id from the ATECC608.
         'device_public_key': body['device_public_key'],
         'email': email,
         'sourceIp':ip_address,
-        'encrypted_data_key': base64.b64encode(data_key_encrypted).decode('ascii'),
-        'encrypted_server_pem_key': base64.b64encode(server_pem_key_encrypted).decode('ascii')
+        'encrypted_data_key': base64.b64encode(data_key_encrypted).decode('utf-8'),
+        'encrypted_server_pem_key': base64.b64encode(server_pem_key_encrypted).decode('utf-8')
 
         }
 
