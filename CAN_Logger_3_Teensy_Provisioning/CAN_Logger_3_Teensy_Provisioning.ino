@@ -46,8 +46,9 @@ Sha256* sha256Instance;
 byte hash[SHA256_BLOCK_SIZE];
 
 byte message[64];
+uint8_t server_public_key[64];
 
-String serial_string, server_public_key;
+String serial_string;
 
 void setup() {
   // put your setup code here, to run once:
@@ -132,12 +133,17 @@ void loop() {
     //Wait for server to send its public key
     while (Serial.available() == 0);//wait for Python input again
     
-    server_public_key = Serial.readStringUntil('\n'); //Need to update this line for reading the data from python
-    Serial.println("");
-    Serial.print(server_public_key);
+    for (int i = 0; i < 64; i++){
+      byte c = Serial.read();
+      server_public_key[i] = c;
+      
+      char hex_digit[3];
+      sprintf(hex_digit,"%02X", server_public_key[i]);
+      Serial.print(hex_digit);
+    }
     
-    //atecc.loadPublicKey(server_public_key); //Load the received public key to slot 10 on the ATECC
-    //atecc.lockDataAndOTP(); //Lock Data and OTP zone in order to read the server public key later for ECDH
+    atecc.loadPublicKey(server_public_key,true); //Load the received public key to slot 10 on the ATECC
+    atecc.lockDataAndOTP(); //Lock Data and OTP zone in order to read the server public key later for ECDH
     
   }
   else {};
