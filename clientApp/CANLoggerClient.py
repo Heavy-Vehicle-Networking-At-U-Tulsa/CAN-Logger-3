@@ -227,8 +227,8 @@ class CANLogger(QMainWindow):
         
         
         try:
-            data = {'serial_number': base64.b64encode(serial_number),
-                    'device_public_key': base64.b64encode(device_public_key),
+            data = {'serial_number': base64.b64encode(serial_number).decode("ascii"),
+                    'device_public_key': base64.b64encode(device_public_key).decode("ascii"),
                    }
         except TypeError:
             logger.warning("Must have data to get key.")
@@ -243,18 +243,18 @@ class CANLogger(QMainWindow):
         print(r.text)
         if r.status_code == 200: #This is normal return value
             server_public_key = r.text
+            assert len(server_public_key)==128
             print("uint8_t server_public_key[64] = {")
             for i in range(0,len(server_public_key),2):
                 print("0x{}{},".format(server_public_key[i],server_public_key[i+1]),end='')
             print("};")
             # Write a routine to send the server public key to the device as bytes
-            '''
-	        while not self.serial_queue.empty():
-	            self.serial_queue.get_nowait()
-	        time.sleep(0.1)
-	        self.ser.write(server_public_key'\n')
-	        time.sleep(0.1)
-			'''	
+            self.ser.write(bytearray.fromhex(server_public_key))
+            time.sleep(1)
+            while not self.serial_queue.empty():
+            	ret_val = self.serial_queue.get()
+            print(ret_val)
+
 		
 
     def get_session_key(self):
