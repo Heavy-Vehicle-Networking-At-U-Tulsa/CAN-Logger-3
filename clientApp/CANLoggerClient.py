@@ -217,14 +217,11 @@ class CANLogger(QMainWindow):
         
         response=ret_val.split(b'\n')
         logger.debug(response)
-        
 
-        
         serial_number = response[0]
         device_public_key = response[1]
-        print(base64.b64encode(serial_number))
-        print(base64.b64encode(device_public_key))
-        
+        #print(base64.b64encode(serial_number))
+        #print(base64.b64encode(device_public_key))
         
         try:
             data = {'serial_number': base64.b64encode(serial_number).decode("ascii"),
@@ -248,12 +245,37 @@ class CANLogger(QMainWindow):
             for i in range(0,len(server_public_key),2):
                 print("0x{}{},".format(server_public_key[i],server_public_key[i+1]),end='')
             print("};")
-            # Write a routine to send the server public key to the device as bytes
-            self.ser.write(bytearray.fromhex(server_public_key))
-            time.sleep(1)
-            while not self.serial_queue.empty():
-            	ret_val = self.serial_queue.get()
-            print(ret_val)
+
+            # Visual Confirmation before sending the server public key to the device
+            device_public_key_hash = hashlib.sha256(base64.b64encode(device_public_key)).digest().hex()
+            server_public_key_hash = hashlib.sha256(base64.b64encode(bytes(server_public_key, 'ascii'))).digest().hex()
+            msg = QMessageBox()
+            msg.setWindowTitle("Provisioning Process")
+            msg.setStyleSheet("QLabel{min-width: 80px;}");
+            buttonReply = QMessageBox.question(self, 'Do the keys match?', "Device Serial Number: {}\nDevice public key hash: {}\nServer public key hash: {}".format(serial_number.decode('ascii'),device_public_key_hash,server_public_key_hash), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if buttonReply == QMessageBox.Yes:
+                self.ser.write(bytearray.fromhex(server_public_key))
+                time.sleep(1)
+                ret_val = b''
+                while not self.serial_queue.empty():
+                    character = self.serial_queue.get()
+                    ret_val += character
+                print(ret_val)
+                print(bytes(server_public_key,'ascii'))
+                if ret_val == bytes(server_public_key,'ascii'):
+                    msg.setText("Sucess!")
+                    msg.setIcon(QMessageBox.Information)
+                else:
+                    msg.setText("Fail!")
+                    msg.setIcon(QMessageBox.Critical)
+                msg.setStandardButtons(QMessageBox.Ok)
+                msg.exec_()
+
+            else:
+            	msg.setText("Keys do not match!")
+            	msg.setIcon(QMessageBox.Critical)
+            	msg.setStandardButtons(QMessageBox.Ok)
+            	msg.exec_()         
 
 		
 

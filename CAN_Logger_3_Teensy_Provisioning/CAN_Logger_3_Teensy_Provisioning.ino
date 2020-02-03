@@ -52,9 +52,7 @@ String serial_string;
 
 void setup() {
   // put your setup code here, to run once:
-
-
-  
+  Serial.begin(9600);
   //Initiate ATECC608A connection
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 100000);
   if (atecc.begin() == true)
@@ -65,47 +63,18 @@ void setup() {
   {
     Serial.println("Device not found. Check wiring.");
     while (1); // stall out forever
-  }
-
-  
-  
+  }  
 }
 
 void send_data(){
-  //Write and Lock Configuration made specifically for the CAN Logger 3 application, please see library for more detail
-  /*
-  Serial.print("Write Config: \t");
-  if (atecc.writeProvisionConfig() == true) Serial.println("Success!");
-  else Serial.println("Failure or Config has already been locked.");
-
-  Serial.print("Lock Config: \t");
-  if (atecc.lockConfig() == true) Serial.println("Success!");
-  else Serial.println("Failure or Config has already been locked.");
   
-  //Create device ECC private key and lock it on data slot 0
-  Serial.print("Key Creation: \t");
-  if (atecc.createNewKeyPair() == true) Serial.println("Success!");
-  else Serial.println("Failure or Data Slot has already been locked.");
-
-  Serial.print("Lock Private Key Data Slot: \t");
-  if (atecc.lockDataSlot(0) == true) Serial.println("Success!");
-  else Serial.println("Failure or Data Slot has already been locked.");
-  */
-
-  atecc.writeProvisionConfig();
-  atecc.lockConfig();
-  atecc.createNewKeyPair();
-  atecc.lockDataSlot(0);
+  atecc.writeProvisionConfig(); //Write and Lock Configuration made specifically for the CAN Logger 3 application, please see library for more detail
+  atecc.lockConfig(); //Lock Configuration zone
+  atecc.createNewKeyPair(); //Create ECC key pair on slot 0
+  atecc.lockDataSlot(0); //Lock private key on slot 0
   atecc.readConfigZone(false); // produces a serial number
   atecc.generatePublicKey(0,false); //compute public key from slot 0 private key
-  //Do we need to sign the public key since the we trust the connection and we don't have a hardcoded key on either side yet?
-  //sha256Instance = new Sha256();
-  //sha256Instance->update(atecc.publicKey64Bytes, 64);
-  //sha256Instance->final(hash);
-  //delete sha256Instance;
-  //atecc.createSignature(hash,0,false);
   
-  //Need to send atecc.publicKey64Bytes, atecc.serialNumber, (and atecc.signature?) to the server through python
   //Send serial number to python through local serial
   for (int n = 0; n < sizeof(atecc.serialNumber);n++){
     char hex_digit[3];
@@ -113,6 +82,7 @@ void send_data(){
     Serial.write(hex_digit);
   }
   Serial.write('\n');
+  
   //Send device public key to python through local serial
   for (int n = 0; n < sizeof(atecc.publicKey64Bytes);n++){
     char hex_digit[3];
@@ -123,6 +93,7 @@ void send_data(){
 
 void loop() {
   // put your main code here, to run repeatedly:
+  
   //Wait for Python to initiate the provision process with the string "KEY"
   while(Serial.available() == 0);//wait for Python input
   serial_string = Serial.readStringUntil('\n');
@@ -136,14 +107,16 @@ void loop() {
     for (int i = 0; i < 64; i++){
       byte c = Serial.read();
       server_public_key[i] = c;
-      
-      char hex_digit[3];
-      sprintf(hex_digit,"%02X", server_public_key[i]);
-      Serial.print(hex_digit);
     }
     
-    atecc.loadPublicKey(server_public_key,true); //Load the received public key to slot 10 on the ATECC
+    atecc.loadPublicKey(server_public_key,false); //Load the received public key to slot 10 on the ATECC
     atecc.lockDataAndOTP(); //Lock Data and OTP zone in order to read the server public key later for ECDH
+    atecc.readPublicKey(false);//Read the stored server public key
+    for (int j =0;j<sizeof(atecc.storedPublicKey);j++){
+      char hex_digit[3];
+      sprintf(hex_digit,"%02X", atecc.storedPublicKey[j]);
+      Serial.print(hex_digit);
+    }
     
   }
   else {};
