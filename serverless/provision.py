@@ -1,6 +1,7 @@
 import json
 import base64
 import time
+import hashlib
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.backends import default_backend
@@ -60,6 +61,9 @@ def provision(event,context):
     print('server_public_key:')
     print(server_public_key_text)
     
+    #Hash device public key and server public key
+    device_public_key_hash = hashlib.sha256(bytes(body['device_public_key'],'ascii')).digest
+    server_public_key_hash = hashlib.sha256(base64.b64encode(bytes(server_public_key_text,'ascii'))).digest()
 
     # Generate a data key associated with the CMK
     # The data key is used to encrypt the file. Each file can use its own
@@ -78,6 +82,8 @@ def provision(event,context):
     can_logger_dict = {
         'id': serial_number.decode("utf-8"), #72 bit unique id from the ATECC608.
         'device_public_key': body['device_public_key'],
+        'device_public_key_prov_hash':device_public_key_hash.hex().upper()[:10],
+        'server_public_key_prov_hash':server_public_key_hash.hex().upper()[:10],
         'email': email,
         'sourceIp':ip_address,
         'encrypted_data_key': base64.b64encode(data_key_encrypted).decode('utf-8'),

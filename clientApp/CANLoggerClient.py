@@ -247,12 +247,12 @@ class CANLogger(QMainWindow):
             print("};")
 
             # Visual Confirmation before sending the server public key to the device
-            device_public_key_hash = hashlib.sha256(base64.b64encode(device_public_key)).digest().hex()
-            server_public_key_hash = hashlib.sha256(base64.b64encode(bytes(server_public_key, 'ascii'))).digest().hex()
+            device_public_key_hash = hashlib.sha256(base64.b64encode(device_public_key)).digest().hex().upper()
+            server_public_key_hash = hashlib.sha256(base64.b64encode(bytes(server_public_key, 'ascii'))).digest().hex().upper()
             msg = QMessageBox()
             msg.setWindowTitle("Provisioning Process")
             msg.setStyleSheet("QLabel{min-width: 80px;}");
-            buttonReply = QMessageBox.question(self, 'Do the keys match?', "Device Serial Number: {}\nDevice public key hash: {}\nServer public key hash: {}".format(serial_number.decode('ascii'),device_public_key_hash,server_public_key_hash), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            buttonReply = QMessageBox.question(self, 'Do the keys match?', "Device Serial Number: {}\nDevice public key provisioning hash: {}\nServer public key provisioning hash: {}".format(serial_number.decode('ascii'),device_public_key_hash[:10],server_public_key_hash[:10]), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if buttonReply == QMessageBox.Yes:
                 self.ser.write(bytearray.fromhex(server_public_key))
                 time.sleep(1)
@@ -260,8 +260,6 @@ class CANLogger(QMainWindow):
                 while not self.serial_queue.empty():
                     character = self.serial_queue.get()
                     ret_val += character
-                print(ret_val)
-                print(bytes(server_public_key,'ascii'))
                 if ret_val == bytes(server_public_key,'ascii'):
                     msg.setText("Sucess!")
                     msg.setIcon(QMessageBox.Information)
