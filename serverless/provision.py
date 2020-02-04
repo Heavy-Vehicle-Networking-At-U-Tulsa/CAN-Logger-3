@@ -30,9 +30,9 @@ def provision(event,context):
         return response(400, "Missing required parameters.")
     try:
         pub_key = base64.b64decode(body['device_public_key'])
-        assert len(pub_key) == 64
+        assert len(pub_key) == 128
         serial_number = base64.b64decode(body['serial_number'])
-        assert len(serial_number) == 9
+        assert len(serial_number) == 18
     except:
         return response(400, "Parameters are in the incorrect format.")
 
