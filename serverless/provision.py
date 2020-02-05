@@ -9,12 +9,16 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import utils
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 import boto3
 from botocore.exceptions import ClientError
 
 from utils import lambdaResponse as response
 from utils import verify_meta_data_text
+
+import random
+import string
 
 cmk_id = "arn:aws:kms:us-east-2:096696900030:key/161b7817-f9b5-444a-87dc-a4d5943f7c1e"
 
@@ -79,6 +83,31 @@ def provision(event,context):
     f = Fernet(data_key_plaintext)
     server_pem_key_encrypted = f.encrypt(server_pem_key)
 
+    #Create a random 16 bytes
+    choices = string.ascii_letters + string.digits
+    rand_pass = b''
+    for i in range(16):
+    	rand_pass += bytes(random.choice(choices),'ascii')
+
+    #Load Device Public Key and derive shared secret
+    device_bytes = b'\x04' + base64.b64decode(body['device_public_key'])
+    device_pub_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(),device_bytes)
+    shared_secret = server_private_key.exchange(ec.ECDH(),device_pub_key)
+
+    #use the first 16 bytes (128 bits) of the shared secret to encrypt the random password
+    cipher = Cipher(algorithms.AES(shared_secret[:16]), 
+                                   modes.ECB(), 
+                                   backend=default_backend())
+    encryptor = cipher.encryptor()
+    encrypted_rand_pass = encryptor.update(rand_pass) + encryptor.finalize()
+
+    #Serialize server private key with password from rand_pass
+    server_pem_key_pass = server_private_key.private_bytes(
+                            encoding = serialization.Encoding.PEM,
+                            format = serialization.PrivateFormat.PKCS8,
+                            encryption_algorithm = serialization.BestAvailableEncryption(rand_pass))
+
+
     can_logger_dict = {
         'id': serial_number.decode("utf-8"), #72 bit unique id from the ATECC608.
         'device_public_key': body['device_public_key'],
@@ -87,9 +116,17 @@ def provision(event,context):
         'email': email,
         'sourceIp':ip_address,
         'encrypted_data_key': base64.b64encode(data_key_encrypted).decode('utf-8'),
-        'encrypted_server_pem_key': base64.b64encode(server_pem_key_encrypted).decode('utf-8')
+        'encrypted_server_pem_key': base64.b64encode(server_pem_key_encrypted).decode('utf-8'),
+        'password_for_testing': rand_pass.decode('ascii') #Will delete after testing
 
         }
+
+    #Load the server_public_key, the server_pem_key_pass, and the encrypted_rand_pass
+    data_dict = {
+    	'server_public_key': base64.b64encode(server_public_key_bytes).decode('ascii'),
+    	'server_pem_key_pass':base64.b64encode(server_pem_key_pass).decode('ascii'),
+    	'encrypted_rand_pass':base64.b64encode(encrypted_rand_pass).decode('ascii')
+    }
 
     dbClient = boto3.resource('dynamodb', region_name='us-east-2')
     table = dbClient.Table("CANLoggers")
@@ -100,7 +137,7 @@ def provision(event,context):
             )
     except:
         return response(400, "serial number already exists")
-    return response(200, server_public_key_text)
+    return response(200, data_dict)
     
 
 def create_data_key(cmk_id, key_spec='AES_256'):

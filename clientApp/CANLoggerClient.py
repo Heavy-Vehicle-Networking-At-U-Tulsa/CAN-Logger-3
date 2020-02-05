@@ -220,8 +220,7 @@ class CANLogger(QMainWindow):
 
         serial_number = response[0]
         device_public_key = response[1]
-        #print(base64.b64encode(serial_number))
-        #print(base64.b64encode(device_public_key))
+
         
         try:
             data = {'serial_number': base64.b64encode(serial_number).decode("ascii"),
@@ -239,7 +238,11 @@ class CANLogger(QMainWindow):
         print(r.status_code)
         print(r.text)
         if r.status_code == 200: #This is normal return value
-            server_public_key = r.text
+            data_dict = r.json()
+            server_public_key=base64.b64decode(data_dict["server_public_key"]).hex().upper()
+            server_pem_key_pass=base64.b64decode(data_dict["server_pem_key_pass"]).decode('ascii')
+            encrypted_rand_pass=data_dict["encrypted_rand_pass"] #base64 format
+
             assert len(server_public_key)==128
             print("uint8_t server_public_key[64] = {")
             for i in range(0,len(server_public_key),2):
@@ -250,6 +253,7 @@ class CANLogger(QMainWindow):
             device_public_key_hash = hashlib.sha256(base64.b64encode(device_public_key)).digest().hex().upper()
             server_public_key_hash = hashlib.sha256(base64.b64encode(bytes(server_public_key, 'ascii'))).digest().hex().upper()
             msg = QMessageBox()
+            #Key Comparision Window
             msg.setWindowTitle("Provisioning Process")
             msg.setStyleSheet("QLabel{min-width: 80px;}");
             buttonReply = QMessageBox.question(self, 'Do the keys match?', "Device Serial Number: {}\nDevice public key provisioning hash: {}\nServer public key provisioning hash: {}".format(serial_number.decode('ascii'),device_public_key_hash[:10],server_public_key_hash[:10]), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
@@ -273,9 +277,25 @@ class CANLogger(QMainWindow):
             	msg.setText("Keys do not match!")
             	msg.setIcon(QMessageBox.Critical)
             	msg.setStandardButtons(QMessageBox.Ok)
-            	msg.exec_()         
+            	msg.exec_()
 
-		
+
+            #Ask the operator if they want to save the server_pem_key and encrypted_rand_pass
+            buttonReply = QMessageBox.question(self, 'Save File', "Would you like to save the server private key and its encrypted password?", QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
+            if buttonReply == QMessageBox.Yes:
+                #Save the server pem key with pass and encrypted password to a text file
+                options = QFileDialog.Options()
+                options |= QFileDialog.Detail
+                self.data_file_name, data_file_type = QFileDialog.getSaveFileName(self,
+                                                    "Save File",
+                                                    self.home_directory + "/" + "CAN Logger 3 Security List",
+                                                    "Text Files (*.txt);;All Files (*)",
+                                                    options = options)
+                if self.data_file_name:
+                    print(self.data_file_name)
+                    file = open(self.data_file_name,'w')
+                    file.write()
+                    file.close()
 
     def get_session_key(self):
         url = API_ENDPOINT + "auth"
