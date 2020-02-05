@@ -47,6 +47,7 @@ byte hash[SHA256_BLOCK_SIZE];
 
 byte message[64];
 uint8_t server_public_key[64];
+uint8_t encrypted_pass[16];
 
 String serial_string;
 
@@ -67,11 +68,7 @@ void setup() {
 }
 
 void send_data(){
-  
-  atecc.writeProvisionConfig(); //Write and Lock Configuration made specifically for the CAN Logger 3 application, please see library for more detail
-  atecc.lockConfig(); //Lock Configuration zone
-  atecc.createNewKeyPair(); //Create ECC key pair on slot 0
-  atecc.lockDataSlot(0); //Lock private key on slot 0
+    
   atecc.readConfigZone(false); // produces a serial number
   atecc.generatePublicKey(0,false); //compute public key from slot 0 private key
   
@@ -94,11 +91,17 @@ void send_data(){
 void loop() {
   // put your main code here, to run repeatedly:
   
-  //Wait for Python to initiate the provision process with the string "KEY"
+  //Wait for Python to initiate the commands
   while(Serial.available() == 0);//wait for Python input
   serial_string = Serial.readStringUntil('\n');
+
+  //Provisioning process
   if (serial_string.equalsIgnoreCase("KEY")) 
   {
+    atecc.writeProvisionConfig(); //Write and Lock Configuration made specifically for the CAN Logger 3 application, please see library for more detail
+    atecc.lockConfig(); //Lock Configuration zone
+    atecc.createNewKeyPair(); //Create ECC key pair on slot 0
+    atecc.lockDataSlot(0); //Lock private key on slot 0
     send_data();
     
     //Wait for server to send its public key
@@ -119,5 +122,30 @@ void loop() {
     }
     
   }
+
+  //Decrypt password process
+  if (serial_string.equalsIgnoreCase("PASSWORD")) 
+  {
+    send_data();
+
+    //Wait for server to send its public key
+    while (Serial.available() == 0);//wait for Python input again
+    
+    for (int i = 0; i < 16; i++){
+      byte c = Serial.read();
+      encrypted_pass[i] = c;
+      }
+      
+    atecc.readPublicKey(false);
+    atecc.ECDH(atecc.storedPublicKey, ECDH_OUTPUT_IN_TEMPKEY,0x0000, false);
+    atecc.AES_ECB(encrypted_pass, 0x01);
+    for (int n = 0; n < 16;n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",atecc.AES_buffer[n]);
+    Serial.write(hex_digit);
+  }
+    
+  }
+  
   else {};
 }

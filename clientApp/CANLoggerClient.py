@@ -172,6 +172,13 @@ class CANLogger(QMainWindow):
         logger_menu.addAction(get_key)
         file_toolbar.addAction(get_key)
 
+        get_password = QAction(QIcon(r'icons/get_password.png'), 'Get &Password', self)
+        get_password.setShortcut('Ctrl+I')
+        get_password.setStatusTip('Decrypt the server private key password for the current device.')
+        get_password.triggered.connect(self.decrypt_password)
+        logger_menu.addAction(get_password)
+        file_toolbar.addAction(get_password)
+
         self.setWindowTitle("CAN Logger Client Application")
         
         self.meta_data_dict       = None
@@ -257,10 +264,8 @@ class CANLogger(QMainWindow):
             # Visual Confirmation before sending the server public key to the device
             device_public_key_hash = hashlib.sha256(base64.b64encode(device_public_key)).digest().hex().upper()
             server_public_key_hash = hashlib.sha256(base64.b64encode(bytes(server_public_key, 'ascii'))).digest().hex().upper()
-            msg = QMessageBox()
-            #Key Comparision Window
-            msg.setWindowTitle("Provisioning Process    ")
-            #msg.setStyleSheet("QLabel{min-width: 120px;}");
+            
+            #Key Comparision 
             buttonReply = QMessageBox.question(self, 'Do the keys match?', "Device Serial Number: {}\nDevice public key provisioning hash: {}\nServer public key provisioning hash: {}".format(serial_number.decode('ascii'),device_public_key_hash[:10],server_public_key_hash[:10]), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if buttonReply == QMessageBox.Yes:
                 self.ser.write(bytearray.fromhex(server_public_key))
@@ -270,19 +275,13 @@ class CANLogger(QMainWindow):
                     character = self.serial_queue.get()
                     ret_val += character
                 if ret_val == bytes(server_public_key,'ascii'):
-                    msg.setText("Sucess!")
-                    msg.setIcon(QMessageBox.Information)
+                    QMessageBox.information(self,"Provisioning Process","Server Public Key has been stored and locked in device {}".format(self.serial_id))
+                    
                 else:
-                    msg.setText("Fail!")
-                    msg.setIcon(QMessageBox.Critical)
-                msg.setStandardButtons(QMessageBox.Ok)
-                msg.exec_()
+                    QMessageBox.warning(self,"Error","Key is already locked!")
 
             else:
-            	msg.setText("Keys do not match!")
-            	msg.setIcon(QMessageBox.Critical)
-            	msg.setStandardButtons(QMessageBox.Ok)
-            	msg.exec_()
+                QMessageBox.warning(self,"Error","Keys do not match!")
 
             self.ask_to_save() #Will be moved under Success
 
@@ -307,15 +306,64 @@ class CANLogger(QMainWindow):
             #if os.path.getsize(self.data_file_name) >0:
                 with open(self.data_file_name,'r') as file:
                     data = json.load(file)
-                    data[self.serial_id] = {'sever_pem_key':self.server_pem,'encrypted_password':self.rand_pass}
+                data[self.serial_id] = {'sever_pem_key':self.server_pem,'encrypted_password':self.rand_pass}
                 with open(self.data_file_name,'w') as file:
-                    json.dump(data,file)
-                file.close()
+                    json.dump(data,file, indent=4)
+                
             else:
                 with open(self.data_file_name,'w') as file:
                     data = {self.serial_id:{'sever_pem_key':self.server_pem,'encrypted_password':self.rand_pass}}
-                    json.dump(data,file)
-                file.close()
+                    json.dump(data,file, indent=4)
+                
+
+    #Send the encrypted server pem key password to the device for encryption
+    #Must be done after the provisioning process
+    def decrypt_password(self):
+        QMessageBox.information(self,"Deccrypt Encrypted Password","Please choose the security list JSON file from Provisioning step.")
+        options = QFileDialog.Options()
+        options |= QFileDialog.Detail
+        self.data_file_name, data_file_type = QFileDialog.getOpenFileName(self,
+                                            "Open JSON File",
+                                            self.home_directory,
+                                            "JSON Files (*.json);;All Files (*)",
+                                            options = options)
+
+        if self.data_file_name:
+            with open(self.data_file_name,'r') as file:
+                data = json.load(file)
+
+            #Open serial COM port if not connected
+            while not self.connected:
+                if self.connect_logger_by_usb() is None:
+                    return
+            # empty the queue
+            while not self.serial_queue.empty():
+                self.serial_queue.get_nowait()
+            time.sleep(0.5)
+            self.ser.write(b'PASSWORD\n')
+            time.sleep(0.5)
+            
+            ret_val = b''
+            while not self.serial_queue.empty():
+                character = self.serial_queue.get()
+                ret_val += character
+            response = ret_val.split(b'\n')
+            serial_number =response[0].decode('ascii')
+            encrypted_pass = base64.b64decode(bytes(data[serial_number]["encrypted_password"],'ascii'))
+            print(encrypted_pass)
+            self.ser.write(encrypted_pass)
+            time.sleep(1)
+
+            ret_val = b''
+            while not self.serial_queue.empty():
+                character = self.serial_queue.get()
+                ret_val += character
+            typable_pass = bytes.fromhex(ret_val.decode('ascii'))
+            print("Plain Password is: ", ret_val)
+            print(typable_pass)
+
+
+
 
     def get_session_key(self):
         url = API_ENDPOINT + "auth"
