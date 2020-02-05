@@ -35,6 +35,7 @@ def provision(event,context):
     try:
         pub_key = base64.b64decode(body['device_public_key'])
         assert len(pub_key) == 128
+        device_pub_key_bytes = bytearray.fromhex(pub_key.decode('ascii'))
         serial_number = base64.b64decode(body['serial_number'])
         assert len(serial_number) == 18
     except:
@@ -66,8 +67,8 @@ def provision(event,context):
     print(server_public_key_text)
     
     #Hash device public key and server public key
-    device_public_key_hash = hashlib.sha256(bytes(body['device_public_key'],'ascii')).digest()
-    server_public_key_hash = hashlib.sha256(base64.b64encode(bytes(server_public_key_text,'ascii'))).digest()
+    device_public_key_hash = hashlib.sha256(device_pub_key_bytes).digest()
+    server_public_key_hash = hashlib.sha256(server_public_key_bytes).digest()
 
     # Generate a data key associated with the CMK
     # The data key is used to encrypt the file. Each file can use its own
@@ -90,8 +91,13 @@ def provision(event,context):
     	rand_pass += bytes(random.choice(choices),'ascii')
 
     #Load Device Public Key and derive shared secret
-    device_bytes = b'\x04' + base64.b64decode(body['device_public_key'])
-    device_pub_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(),device_bytes)
+    device_bytes = b'\x04' + device_pub_key_bytes
+    print('device_bytes:')
+    print(device_bytes)
+    try:
+        device_pub_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(),device_bytes)
+    except ValueError:
+        return response(400, "Device Public Key is malformed")
     shared_secret = server_private_key.exchange(ec.ECDH(),device_pub_key)
 
     #use the first 16 bytes (128 bits) of the shared secret to encrypt the random password
