@@ -50,7 +50,7 @@ import random
 import os
 import traceback
 import logging
-
+import os
 
 sys.path.insert(1, '../serverless')
 from utils import verify_meta_data_text, decode_jwt
@@ -100,6 +100,7 @@ class SerialListener(threading.Thread):
 class CANLogger(QMainWindow):
     def __init__(self):
         super(CANLogger, self).__init__()
+        self.home_directory = os.getcwd()
         try:
             self.API_KEY = os.environ["CANLogger_API_KEY"]
         except:
@@ -242,6 +243,8 @@ class CANLogger(QMainWindow):
             server_public_key=base64.b64decode(data_dict["server_public_key"]).hex().upper()
             server_pem_key_pass=base64.b64decode(data_dict["server_pem_key_pass"]).decode('ascii')
             encrypted_rand_pass=data_dict["encrypted_rand_pass"] #base64 format
+            print(server_pem_key_pass)
+            print(encrypted_rand_pass)
 
             assert len(server_public_key)==128
             print("uint8_t server_public_key[64] = {")
@@ -283,19 +286,22 @@ class CANLogger(QMainWindow):
             #Ask the operator if they want to save the server_pem_key and encrypted_rand_pass
             buttonReply = QMessageBox.question(self, 'Save File', "Would you like to save the server private key and its encrypted password?", QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes)
             if buttonReply == QMessageBox.Yes:
-                #Save the server pem key with pass and encrypted password to a text file
-                options = QFileDialog.Options()
-                options |= QFileDialog.Detail
-                self.data_file_name, data_file_type = QFileDialog.getSaveFileName(self,
-                                                    "Save File",
-                                                    self.home_directory + "/" + "CAN Logger 3 Security List",
-                                                    "Text Files (*.txt);;All Files (*)",
-                                                    options = options)
-                if self.data_file_name:
-                    print(self.data_file_name)
-                    file = open(self.data_file_name,'w')
-                    file.write()
-                    file.close()
+                self.save_security_list()
+
+    def save_security_list(self):
+        #Save the server pem key with pass and encrypted password to a text file
+        options = QFileDialog.Options()
+        options |= QFileDialog.Detail
+        self.data_file_name, data_file_type = QFileDialog.getSaveFileName(self,
+                                            "Save File",
+                                            self.home_directory + "/" + "CAN Logger 3 Security List",
+                                            "Text Files (*.txt);;All Files (*)",
+                                            options = options)
+        if self.data_file_name:
+            print(self.data_file_name)
+            file = open(self.data_file_name,'w')
+            file.write()
+            file.close()
 
     def get_session_key(self):
         url = API_ENDPOINT + "auth"
