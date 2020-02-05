@@ -67,8 +67,8 @@ def provision(event,context):
     print(server_public_key_text)
     
     #Hash device public key and server public key
-    device_public_key_hash = hashlib.sha256(bytes(body['device_public_key'],'ascii')).digest()
-    server_public_key_hash = hashlib.sha256(base64.b64encode(bytes(server_public_key_text,'ascii'))).digest()
+    device_public_key_hash = hashlib.sha256(bytes(body['device_public_key'],'ascii')).digest().hex().upper()
+    server_public_key_hash = hashlib.sha256(base64.b64encode(bytes(server_public_key_text,'ascii'))).digest().hex().upper()
 
     # Generate a data key associated with the CMK
     # The data key is used to encrypt the file. Each file can use its own
