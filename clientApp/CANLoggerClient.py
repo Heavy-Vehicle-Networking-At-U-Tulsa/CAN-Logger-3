@@ -100,7 +100,6 @@ class SerialListener(threading.Thread):
 class CANLogger(QMainWindow):
     def __init__(self):
         super(CANLogger, self).__init__()
-        self.setTextInteractionFlags(Qt.TextSelectableByMouse) 
         self.home_directory = os.getcwd()
         try:
             self.API_KEY = os.environ["CANLogger_API_KEY"]
@@ -363,8 +362,17 @@ class CANLogger(QMainWindow):
                 character = self.serial_queue.get()
                 ret_val += character
             typable_pass = bytes.fromhex(ret_val.decode('ascii'))
-            print("Plain Password is: ", ret_val)
-            print(typable_pass)
+
+            #Display the decrypted password
+            msg=QMessageBox()
+            msg.setIcon(QMessageBox.Information)
+            msg.setText("The plain text password is:\n{}".format(typable_pass))
+            msg.setWindowTitle("Decrypt Password")
+            msg.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            msg.exec_()
+
+
+
 
 
 
