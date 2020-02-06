@@ -100,6 +100,7 @@ class SerialListener(threading.Thread):
 class CANLogger(QMainWindow):
     def __init__(self):
         super(CANLogger, self).__init__()
+        self.setTextInteractionFlags(Qt.TextSelectableByMouse) 
         self.home_directory = os.getcwd()
         try:
             self.API_KEY = os.environ["CANLogger_API_KEY"]
@@ -261,9 +262,11 @@ class CANLogger(QMainWindow):
                 print("0x{}{},".format(server_public_key[i],server_public_key[i+1]),end='')
             print("};")
 
-            # Visual Confirmation before sending the server public key to the device
-            device_public_key_hash = hashlib.sha256(base64.b64encode(device_public_key)).digest().hex().upper()
-            server_public_key_hash = hashlib.sha256(base64.b64encode(bytes(server_public_key, 'ascii'))).digest().hex().upper()
+            # Visual key hash confirmation before sending the server public key to the device
+            device_pub_key_bytes = bytearray.fromhex(device_public_key.decode("ascii"))
+            server_public_key_bytes = base64.b64decode(data_dict["server_public_key"])   
+            device_public_key_hash = hashlib.sha256(device_pub_key_bytes).digest().hex().upper()
+            server_public_key_hash = hashlib.sha256(server_public_key_bytes).digest().hex().upper()
             
             #Key Comparision 
             buttonReply = QMessageBox.question(self, 'Do the keys match?', "Device Serial Number: {}\nDevice public key provisioning hash: {}\nServer public key provisioning hash: {}".format(serial_number.decode('ascii'),device_public_key_hash[:10],server_public_key_hash[:10]), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
@@ -314,6 +317,7 @@ class CANLogger(QMainWindow):
                 with open(self.data_file_name,'w') as file:
                     data = {self.serial_id:{'sever_pem_key':self.server_pem,'encrypted_password':self.rand_pass}}
                     json.dump(data,file, indent=4)
+            QMessageBox.information(self,"Save File","File is successfully saved!")
                 
 
     #Send the encrypted server pem key password to the device for encryption
