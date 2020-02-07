@@ -361,7 +361,7 @@ class CANLogger(QMainWindow):
             while not self.serial_queue.empty():
                 character = self.serial_queue.get()
                 ret_val += character
-            typable_pass = bytes.fromhex(ret_val.decode('ascii'))
+            typable_pass = bytes.fromhex(ret_val.decode('ascii')).decode('ascii')
 
             #Display the decrypted password
             msg=QMessageBox()
@@ -370,10 +370,6 @@ class CANLogger(QMainWindow):
             msg.setWindowTitle("Decrypt Password")
             msg.setTextInteractionFlags(Qt.TextSelectableByMouse)
             msg.exec_()
-
-
-
-
 
 
 

@@ -850,10 +850,8 @@ void setup(void) {
   
   Serial.println("Starting CAN logger.");
 
-  // The server public key should already be installed in the ATECC. Why do we have to do this?
-  Serial.println("Load Server Public Key:");
-  if (atecc.loadPublicKey(server_public_key) == false) Serial.println("Failure.");
-  atecc.readPublicKey(true);
+  // Derive ECDH and load into TEMPKEY
+  atecc.readPublicKey(false);
   atecc.ECDH(atecc.storedPublicKey, ECDH_OUTPUT_IN_TEMPKEY,0x0000);
   
   first_buffer_sent = false;
@@ -919,7 +917,7 @@ void setup(void) {
 
   // Add the ATECC Encryption Scheme here and update the value of the encrypted_aeskey
   Serial.print("Encrypted AES Session Key: ");
-  atecc.AES_ECB(aeskey);
+  atecc.AES_ECB_encrypt(aeskey);
   memcpy(&encrypted_aeskey[0],&atecc.AES_buffer[0],16);
   for (int i = 0; i<16; i++){
     char hex_digit[3];

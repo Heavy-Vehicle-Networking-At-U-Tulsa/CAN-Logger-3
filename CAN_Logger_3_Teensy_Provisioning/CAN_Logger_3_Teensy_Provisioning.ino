@@ -137,8 +137,8 @@ void loop() {
       }
       
     atecc.readPublicKey(false);
-    atecc.ECDH(atecc.storedPublicKey, ECDH_OUTPUT_IN_TEMPKEY,0x0000, false);
-    atecc.AES_ECB(encrypted_pass, 0x01);
+    atecc.ECDH(atecc.storedPublicKey, ECDH_OUTPUT_IN_TEMPKEY,0x0000);
+    atecc.AES_ECB_decrypt(encrypted_pass);
     for (int n = 0; n < 16;n++){
     char hex_digit[3];
     sprintf(hex_digit,"%02X",atecc.AES_buffer[n]);
