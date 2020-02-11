@@ -128,12 +128,12 @@ class CANLogger(QMainWindow):
         user_menu = menubar.addMenu('&User')
         login = QAction(QIcon(r'icons/new_icon.png'), '&Login', self)
         login.setShortcut('Ctrl+L')
-        login.setStatusTip('Upload current file.')
+        login.setStatusTip('User login.')
         login.triggered.connect(self.login)
         user_menu.addAction(login)
         file_toolbar.addAction(login)
 
-        hello = QAction(QIcon(r'icons/test_icon.png'), '&Hello', self)
+        hello = QAction(QIcon(r'icons/test_icon.png'), 'Connection &Test', self)
         hello.setShortcut('Ctrl+H')
         hello.setStatusTip('Test Endpoint Authorization.')
         hello.triggered.connect(self.hello)
@@ -174,7 +174,7 @@ class CANLogger(QMainWindow):
 
         get_password = QAction(QIcon(r'icons/get_password.png'), 'Get &Password', self)
         get_password.setShortcut('Ctrl+I')
-        get_password.setStatusTip('Decrypt the server private key password for the current device.')
+        get_password.setStatusTip('Decrypt the server private key password.')
         get_password.triggered.connect(self.decrypt_password)
         logger_menu.addAction(get_password)
         file_toolbar.addAction(get_password)
