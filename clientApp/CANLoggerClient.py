@@ -408,8 +408,28 @@ class CANLogger(QMainWindow):
             QMessageBox.information(self,"Server Return","The server returned a status code {}.\n{}".format(r.status_code,r.text))  
 
     def format_sd_card(self):
-        QMessageBox.question(self,"Are you sure?","Formatting will erase all the data on the SD Card. ")
-    
+        buttonReply = QMessageBox.question(self,"Are you sure?","Formatting will erase all the data on the SD Card. ", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if buttonReply == QMessageBox.Yes:
+        	#Open serial COM port if not connected
+            while not self.connected:
+                if self.connect_logger_by_usb() is None:
+                    return
+            # empty the queue
+            while not self.serial_queue.empty():
+                self.serial_queue.get_nowait()
+            time.sleep(0.5)
+            self.ser.write(b'FORMAT\n')
+            time.sleep(0.5)
+            ret_val = b''
+            while not self.serial_queue.empty():
+            	character = self.serial_queue.get()
+            	ret_val += character
+            if len(ret_val) == 102:
+            	QMessageBox.information(self,"Format SD Card", "SD card is successfully formatted!")
+            else:
+            	QMessageBox.warning(self,"Format SD Card", "Fail to format SD card!")
+            
+
     def decrypt_file(self):
         if self.session_key is None:
             logger.debug("Decryption Needs a Session Key")
