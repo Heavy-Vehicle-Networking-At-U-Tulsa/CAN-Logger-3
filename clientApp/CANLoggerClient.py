@@ -403,9 +403,33 @@ class CANLogger(QMainWindow):
         if r.status_code == 200: #This is normal return value
             self.session_key = base64.b64decode(r.text)
             print("session_key = {}".format(self.session_key))
-            QMessageBox.information(self,"Session Key","The Session Key was recovered from the secure server.")
-            self.download_file()
-            self.decrypt_file()
+            session_key_hex = self.session_key.hex().upper()
+
+            #Display the AES session key for user
+            msg=QMessageBox()
+            msg.setIcon(QMessageBox.Information)
+            msg.setText("The Session Key was recovered from the secure server.\nThe AES session key for the file is:\n{}".format(session_key_hex))
+            msg.setWindowTitle("Session Key")
+            msg.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            msg.exec_()
+
+            buttonReply = QMessageBox.question(self,"Log File","Do you want to save the decrypted version of selected file?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if buttonReply == QMessageBox.Yes:
+                self.download_file()
+                self.decrypt_file()
+
+                #Save decrypted file
+                options = QFileDialog.Options()
+                options |= QFileDialog.Detail
+                self.data_file_name, data_file_type = QFileDialog.getSaveFileName(self,
+                                                    "Save File",
+                                                    self.home_directory + "/" + self.meta_data_dict["filename"] + "-decrypted",
+                                                    "BIN Files (*.bin);;All Files (*)",
+                                                    options = options)
+                if self.data_file_name:
+                    with open(self.data_file_name, 'wb') as file:
+                        file.write(self.decrypted_log)
+                        file.close()
         else:
             QMessageBox.information(self,"Server Return","The server returned a status code {}.\n{}".format(r.status_code,r.text))  
 
