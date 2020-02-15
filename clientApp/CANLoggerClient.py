@@ -28,7 +28,11 @@ from PyQt5.QtWidgets import (QMainWindow,
                              QDialogButtonBox,
                              QInputDialog,
                              QProgressDialog,
-                             QTabWidget)
+                             QTabWidget,
+                             QFormLayout,
+                             QPlainTextEdit,
+                             QLineEdit,
+                             QComboBox)
 from PyQt5.QtCore import Qt, QTimer, QAbstractTableModel, QCoreApplication, QSize
 from PyQt5.QtGui import QIcon
 
@@ -799,8 +803,15 @@ class CANLogger(QMainWindow):
         header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
         header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
         logger.debug("Using the following header:\n{}".format(header))
+        self.upload_user_input()
+        if self.cont == False:
+            return
+        body_dict ={}
+        body_dict['device_data']=self.meta_data_dict["base64"]
+        body_dict['user_input_data']=self.user_input_dict
+
         try:
-            r = requests.post(url, data=self.meta_data_dict["base64"], headers=header)
+            r = requests.post(url, json=body_dict, headers=header)
         except requests.exceptions.ConnectionError:
             QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
             return
@@ -826,6 +837,62 @@ class CANLogger(QMainWindow):
             QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
             return
 
+    def upload_user_input(self):
+        formGroupBox = QGroupBox("Log File Information")
+        layout=QFormLayout()
+        
+        self.name = QLineEdit()
+        self.company = QLineEdit()
+        self.make = QComboBox()
+        self.model = QLineEdit()
+        self.year = QComboBox()
+        self.note = QPlainTextEdit()
+
+        make_list = ['Kenworth','Peterbilt','Freightliner','Volvo','Mack','International','Other']
+        for i in make_list:
+            self.make.addItem(str(i))
+
+        today = datetime.datetime.today()
+        year_list = range(1980,today.year+1)
+        for i in year_list:
+            self.year.addItem(str(i))
+
+        layout.addRow(QLabel('Name:'),self.name)
+        layout.addRow(QLabel('Company:'),self.company)
+        layout.addRow(QLabel('Make:'),self.make)
+        layout.addRow(QLabel('Model:'),self.model)
+        layout.addRow(QLabel('Year:'),self.year)
+        layout.addRow(QLabel('Note:'),self.note)
+
+        formGroupBox.setLayout(layout)
+        buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttonBox.accepted.connect(self.get_data)
+        buttonBox.rejected.connect(self.reject)
+
+        self.window = QDialog()
+        mainLayout = QVBoxLayout(self.window)
+        mainLayout.addWidget(formGroupBox)
+        mainLayout.addWidget(buttonBox)
+        self.window.setLayout(mainLayout)
+        self.window.setWindowTitle("User Input")
+        self.window.exec()
+
+
+    def get_data(self):
+        self.user_input_dict = {}
+        self.user_input_dict['Name'] = (self.name.text())
+        self.user_input_dict['Company'] =(self.company.text())
+        self.user_input_dict['Make'] =(self.make.currentText())
+        self.user_input_dict['Model'] =(self.model.text())
+        self.user_input_dict['Year'] =(self.year.currentText())
+        self.user_input_dict['Note'] =(self.note.toPlainText())
+        print(self.user_input_dict)
+        self.cont = True
+        self.window.accept()
+
+    def reject(self):
+        self.cont = False   
+        self.window.reject()
 
 if __name__.endswith('__main__'):
     app = QApplication(sys.argv)
