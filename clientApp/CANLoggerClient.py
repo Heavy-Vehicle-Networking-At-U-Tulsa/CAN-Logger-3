@@ -848,12 +848,13 @@ class CANLogger(QMainWindow):
         self.year = QComboBox()
         self.note = QPlainTextEdit()
 
-        make_list = ['Kenworth','Peterbilt','Freightliner','Volvo','Mack','International','Other']
+        make_list = [' ','Kenworth','Peterbilt','Freightliner','Volvo','Mack','International','Other']
         for i in make_list:
             self.make.addItem(str(i))
 
         today = datetime.datetime.today()
         year_list = range(1980,today.year+1)
+        self.year.addItem(' ')
         for i in year_list:
             self.year.addItem(str(i))
 
@@ -886,7 +887,12 @@ class CANLogger(QMainWindow):
         self.user_input_dict['Model'] =(self.model.text())
         self.user_input_dict['Year'] =(self.year.currentText())
         self.user_input_dict['Note'] =(self.note.toPlainText())
+
+        for i in self.user_input_dict:
+            if self.user_input_dict[i] =="":
+                self.user_input_dict[i] = " "
         print(self.user_input_dict)
+        print(type(self.user_input_dict))
         self.cont = True
         self.window.accept()
 
