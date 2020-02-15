@@ -50,7 +50,7 @@ def upload(event, context):
     meta_data_dict["serial_num"] = meta_data[4].split(":")[1] # Unique ID as a string from the ATECC608 Chip
     meta_data_dict["init_vect"] = meta_data[5].split(":")[1] #string of hex characters as bytes
     meta_data_dict["session_key"] = meta_data[6].split(":")[1] #string of hex characters as bytes
-    meta_data_dict["filesize"] = int(meta_data[8].split(":")[1]) # Bytes
+    meta_data_dict["filesize"] = int(meta_data[8].split(":")[1]) # number of bytes
     meta_data_dict["digest"] = meta_data[9].split(":")[1] #string of hex characters as bytes
     meta_data_dict["text_sha_digest"] = meta_data[10].split(":")[1] #string of characters as bytes
     meta_data_dict["signature"] = meta_data[11].split(":")[1] #string of characters as bytes
@@ -58,7 +58,7 @@ def upload(event, context):
     meta_data_dict['upload_date'] = ' ' # to be filled in after successful verification of file in S3
     meta_data_dict['uploader'] = email # Attribute who uploaded the file
     meta_data_dict['meta_data'] = user_input_data # User added data 
-
+    
     # newUUID = uuid.uuid4()
     # meta_data_dict["id"] = newUUID.hex
 
@@ -70,7 +70,7 @@ def upload(event, context):
             ConditionExpression = 'attribute_not_exists(digest)'
         )
     except Exception as e:
-        return response(400, "Hash Digest already exists. " + repr(e))
+        return response(400, "Hash Digest already exists or data is missing. " + repr(e))
     
     client = boto3.client('s3', region_name='us-east-2')
     signedURL = client.generate_presigned_post(Bucket='can-log-files',
