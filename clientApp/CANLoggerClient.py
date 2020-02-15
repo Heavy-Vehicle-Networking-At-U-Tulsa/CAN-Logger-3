@@ -838,6 +838,7 @@ class CANLogger(QMainWindow):
             return
 
     def upload_user_input(self):
+        self.cont = False #User has to input data in order to complete upload_file() function
         formGroupBox = QGroupBox("Log File Information")
         layout=QFormLayout()
         
@@ -853,9 +854,9 @@ class CANLogger(QMainWindow):
             self.make.addItem(str(i))
 
         today = datetime.datetime.today()
-        year_list = range(1980,today.year+1)
+        year_list = range(1995,today.year+1)
         self.year.addItem(' ')
-        for i in year_list:
+        for i in reversed(year_list):
             self.year.addItem(str(i))
 
         layout.addRow(QLabel('Name:'),self.name)
