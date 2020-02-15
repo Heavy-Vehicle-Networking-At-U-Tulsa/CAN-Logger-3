@@ -384,8 +384,6 @@ class CANLogger(QMainWindow):
         header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
         try:
             data = {'serial_number': self.meta_data_dict["serial_num"],
-                'file_uid': self.meta_data_dict['file_uid'],
-                'session_key': self.meta_data_dict["session_key"],
                 'digest': base64.b64decode(self.meta_data_dict["binary_sha_digest"]).hex().upper()
                }
             logger.debug(data)
@@ -830,7 +828,7 @@ class CANLogger(QMainWindow):
             logger.debug(r1.text)
             if r1.status_code == 204:
                 self.meta_data_dict['file_uid']=response_dict['upload_link']['fields']['key']
-                QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nKey: {}".format(self.meta_data_dict['file_uid']))
+                QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nDigest: {}".format(self.meta_data_dict['file_uid']))
                                 
         else: #Something went wrong
             logger.debug(r.text)
@@ -892,13 +890,10 @@ class CANLogger(QMainWindow):
         for i in self.user_input_dict:
             if self.user_input_dict[i] =="":
                 self.user_input_dict[i] = " "
-        print(self.user_input_dict)
-        print(type(self.user_input_dict))
-        self.cont = True
+        self.cont = True #User has clicked OK and now proceed to complete upload_file() 
         self.window.accept()
 
-    def reject(self):
-        self.cont = False   
+    def reject(self):  
         self.window.reject()
 
 if __name__.endswith('__main__'):
