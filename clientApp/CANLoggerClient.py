@@ -128,12 +128,12 @@ class CANLogger(QMainWindow):
         user_menu = menubar.addMenu('&User')
         login = QAction(QIcon(r'icons/new_icon.png'), '&Login', self)
         login.setShortcut('Ctrl+L')
-        login.setStatusTip('Upload current file.')
+        login.setStatusTip('User login.')
         login.triggered.connect(self.login)
         user_menu.addAction(login)
         file_toolbar.addAction(login)
 
-        hello = QAction(QIcon(r'icons/test_icon.png'), '&Hello', self)
+        hello = QAction(QIcon(r'icons/test_icon.png'), 'Connection &Test', self)
         hello.setShortcut('Ctrl+H')
         hello.setStatusTip('Test Endpoint Authorization.')
         hello.triggered.connect(self.hello)
@@ -174,7 +174,7 @@ class CANLogger(QMainWindow):
 
         get_password = QAction(QIcon(r'icons/get_password.png'), 'Get &Password', self)
         get_password.setShortcut('Ctrl+I')
-        get_password.setStatusTip('Decrypt the server private key password for the current device.')
+        get_password.setStatusTip('Decrypt the server private key password.')
         get_password.triggered.connect(self.decrypt_password)
         logger_menu.addAction(get_password)
         file_toolbar.addAction(get_password)
@@ -361,7 +361,7 @@ class CANLogger(QMainWindow):
             while not self.serial_queue.empty():
                 character = self.serial_queue.get()
                 ret_val += character
-            typable_pass = bytes.fromhex(ret_val.decode('ascii'))
+            typable_pass = bytes.fromhex(ret_val.decode('ascii')).decode('ascii')
 
             #Display the decrypted password
             msg=QMessageBox()
@@ -370,10 +370,6 @@ class CANLogger(QMainWindow):
             msg.setWindowTitle("Decrypt Password")
             msg.setTextInteractionFlags(Qt.TextSelectableByMouse)
             msg.exec_()
-
-
-
-
 
 
 
@@ -412,8 +408,28 @@ class CANLogger(QMainWindow):
             QMessageBox.information(self,"Server Return","The server returned a status code {}.\n{}".format(r.status_code,r.text))  
 
     def format_sd_card(self):
-        QMessageBox.question(self,"Are you sure?","Formatting will erase all the data on the SD Card. ")
-    
+        buttonReply = QMessageBox.question(self,"Are you sure?","Formatting will erase all the data on the SD Card. ", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if buttonReply == QMessageBox.Yes:
+        	#Open serial COM port if not connected
+            while not self.connected:
+                if self.connect_logger_by_usb() is None:
+                    return
+            # empty the queue
+            while not self.serial_queue.empty():
+                self.serial_queue.get_nowait()
+            time.sleep(0.5)
+            self.ser.write(b'FORMAT\n')
+            time.sleep(0.5)
+            ret_val = b''
+            while not self.serial_queue.empty():
+            	character = self.serial_queue.get()
+            	ret_val += character
+            if len(ret_val) == 102:
+            	QMessageBox.information(self,"Format SD Card", "SD card is successfully formatted!")
+            else:
+            	QMessageBox.warning(self,"Format SD Card", "Fail to format SD card!")
+            
+
     def decrypt_file(self):
         if self.session_key is None:
             logger.debug("Decryption Needs a Session Key")
