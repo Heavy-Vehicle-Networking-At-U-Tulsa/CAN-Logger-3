@@ -59,7 +59,8 @@ def auth(event, context):
         return response(400, "Unable to retrieve table item.")
     
     # load the device's public key which was stored as a base64 encoded binary
-    device_bytes = b'\x04' + base64.b64decode(item['device_public_key'])
+    device_public_key_bytes = bytearray.fromhex(base64.b64decode(item['device_public_key']).decode('ascii'))
+    device_bytes = b'\x04' + device_public_key_bytes
     device_public_key = ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(),device_bytes)
     
     # Decrypt the data key before using it
