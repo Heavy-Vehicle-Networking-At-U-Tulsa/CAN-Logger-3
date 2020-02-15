@@ -82,13 +82,14 @@ def auth(event, context):
     shared_secret = server_key.exchange(ec.ECDH(),device_public_key)
     
     #look up session key
-    table = dbClient.Table("CANLoggerMetaData")
+    print('digest: {}'.format(body['digest']))
+    table = dbClient.Table("CanLoggerMetaData")
     try:
         item = table.get_item( 
             Key = {'digest': body['digest'],} 
         ).get('Item')
-    except:
-        return response(400, "File Meta data not availalble. Please upload file.")
+    except Exception as e:
+        return response(400, "File Meta data not availalble. Please upload file.\n{}".format(repr(e)))
 
     session_key = bytearray.fromhex(item["session_key"])
     
@@ -102,16 +103,17 @@ def auth(event, context):
     # set attribution data
     timestamp = get_timestamp(time.time())
     access_tuple = (timestamp, email, ip_address)
-    access_list = item['access_list']
-    access_list.append(access_tuple)
+    print("Access Tuple: {}".format(access_tuple))
+    # access_list = item['access_list']
+    # access_list.append(access_tuple)
 
-    #update the database with the user access details.
-    table.update_item(
-            Key = {'digest': body['digest'],},
-            AttributeUpdates = {
-                'access_list': access_list,
-            },
-        )
+    # #update the database with the user access details.
+    # table.update_item(
+    #         Key = {'digest': body['digest'],},
+    #         AttributeUpdates = {
+    #             'access_list': access_list,
+    #         },
+    #     )
 
     #return the base64 encoded AES key for that session.
     return response(200, base64.b64encode(clear_key).decode('ascii'))
