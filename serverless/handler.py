@@ -24,12 +24,13 @@ def upload(event, context):
     meta_data_bytes = base64.b64decode(body['device_data'])
     user_input_data = body['user_input_data']
     data_size = sys.getsizeof(user_input_data) 
+    '''
     try:
         assert isInstance(user_input_data, dict) #make it a dict
         assert data_size < 5000 # make sure it's not too big
     except AssertionError:
         return response(400, "user_input_data is inappropriate. {} bytes".format(data_size))
-    
+    '''
     if not verify_meta_data_text(meta_data_bytes):
         return response(400, "meta_data_bytes was not verified.")
     
