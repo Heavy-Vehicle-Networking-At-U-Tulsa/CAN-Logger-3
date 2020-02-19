@@ -126,7 +126,6 @@ def verify_upload(event,context):
         return response(400, "Metadata failed to verify.")
     
     #Send response 
-    '''
     s3 = boto3.resource('s3')
     try:
         s3.download_file(Bucket='can-log-files',
@@ -134,7 +133,7 @@ def verify_upload(event,context):
                                     Filename= 'tmp/temp.bin')
     except Exception as e:
         return response(400, "Log file cannot be found in s3 Bucket" + repr(e))
-
+    '''
     file_size = os.path.getsize('tmp/temp.bin')
     file_location = 0
     with open('tmp/temp.bin','rb') as file:
@@ -149,5 +148,5 @@ def verify_upload(event,context):
     if meta_data_dict["digest"] != s3_file_digest:
         return respnse(400, "Log file hash does not match")
     '''
-    return respnse(200, "Test")
+    return response(200, "Test")
 

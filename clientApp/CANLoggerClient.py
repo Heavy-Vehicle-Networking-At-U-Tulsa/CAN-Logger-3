@@ -861,21 +861,26 @@ class CANLogger(QMainWindow):
             return
 
     def verify_upload(self):
- 		"""
-		This function will get a response from a server for verifying if the uploaded file is authentic
- 		"""
- 		url = API_ENDPOINT + "verify_upload"
-        header = {}
-        header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
-        header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
-        try:
-            r = requests.post(url, json=self.body_dict, headers=header)
-        except requests.exceptions.ConnectionError:
-            QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
-            return
-        print(r.status_code)
-        if r.status_code == 200: #This is normal return value
-        	QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nDigest: {}".format(self.meta_data_dict['file_uid']))
+    	'''
+    	This function will get a response from a server for verifying if the uploaded file is authentic
+    	'''
+    	url = API_ENDPOINT + "verify_upload"
+    	header = {}
+    	header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
+    	header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
+    	try:
+    		r = requests.post(url, json=self.body_dict, headers=header)
+    	except requests.exceptions.ConnectionError:
+    		QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
+    		return
+    	print(r.status_code)
+    	if r.status_code == 200: #This is normal return value
+    		print(r.text)
+    		QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nDigest: {}".format(self.meta_data_dict['file_uid']))
+    	else:
+    		logger.debug(r.text)
+    		QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
+    		return
 
     def upload_user_input(self):
         self.cont = False #User has to input data in order to complete upload_file() function
