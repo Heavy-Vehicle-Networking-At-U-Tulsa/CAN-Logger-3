@@ -3,6 +3,8 @@ import base64
 import boto3
 import logging
 import sys
+import os
+import hashlib
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
@@ -30,10 +32,9 @@ def upload(event, context):
         assert data_size < 5000 # make sure it's not too big
     except AssertionError:
         return response(400, "user_input_data is inappropriate. {} bytes".format(data_size))
-    '''
-    if not verify_meta_data_text(meta_data_bytes):
-        return response(400, "meta_data_bytes was not verified.")
-    
+    ''' 
+
+
     requester_data = event["requestContext"]
     if requester_data["authorizer"]["claims"]["email_verified"]:
         email = requester_data["authorizer"]["claims"]["email"]
@@ -62,7 +63,26 @@ def upload(event, context):
     # newUUID = uuid.uuid4()
     # meta_data_dict["id"] = newUUID.hex
 
+    #Verify metadata integrity
     dbClient = boto3.resource('dynamodb', region_name='us-east-2')
+    table = dbClient.Table("CANLoggers")
+    try:
+        item = table.get_item(
+            Key = {'id': meta_data_dict["serial_num"],}
+            ).get('Item')
+    except:
+        return response(400, "Serial number not found.")
+
+    device_public_key_server = base64.b64decode(item['device_public_key']).decode('ascii')
+    device_public_key_device = meta_data[7].split(":")[1]
+
+    if device_public_key_device != device_public_key_server:
+        return response(400, "Public key from metadata does not match the one from server")
+
+    if not verify_meta_data_text(meta_data_bytes):
+        return response(400, "Metadata failed to verify.")
+    
+    #Send response 
     table = dbClient.Table("CanLoggerMetaData")
     try:
         table.put_item(
@@ -77,4 +97,27 @@ def upload(event, context):
                                                Key=meta_data_dict["digest"]
                                               )
     body = {"upload_link": signedURL}
-    return response(200, body)
+    response(200, body)
+
+    s3 = boto3.resource('s3')
+    try:
+        s3.download_file(Bucket='can-log-files',
+                                    Key=meta_data_dict['digest'],
+                                    Filename= 'tmp/temp.bin')
+    except Exception as e:
+        return response(400, "Log file cannot be found in s3 Bucket" + repr(e))
+
+    file_size = os.path.getsize('tmp/temp.bin')
+    file_location = 0
+    with open('tmp/temp.bin','rb') as file:
+        m = hashlib.sha256()
+        while file_location<file_size:
+            data_buffer = file.read(512)
+            file_location+=512
+            data_buffer.seek(file_location)
+            m.update(data_buffer)
+    s3_file_digest = m.digest().hex().upper()
+    
+    if meta_data_dict["digest"] != s3_file_digest:
+        return respnse(400, "Log file hash does not match")
+
