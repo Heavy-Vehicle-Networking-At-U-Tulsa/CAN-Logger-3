@@ -696,7 +696,8 @@ class CANLogger(QMainWindow):
         else: #Something went wrong
             logger.debug(r.text)
             QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
-        
+
+
     def login(self):
         """
         Get a password from the user with a dialog box and submit it.
@@ -828,12 +829,12 @@ class CANLogger(QMainWindow):
         self.upload_user_input()
         if self.cont == False:
             return
-        body_dict ={}
-        body_dict['device_data']=self.meta_data_dict["base64"]
-        body_dict['user_input_data']=self.user_input_dict
+        self.body_dict ={}
+        self.body_dict['device_data']=self.meta_data_dict["base64"]
+        self.body_dict['user_input_data']=self.user_input_dict
 
         try:
-            r = requests.post(url, json=body_dict, headers=header)
+            r = requests.post(url, json=self.body_dict, headers=header)
         except requests.exceptions.ConnectionError:
             QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
             return
@@ -852,12 +853,29 @@ class CANLogger(QMainWindow):
             logger.debug(r1.text)
             if r1.status_code == 204:
                 self.meta_data_dict['file_uid']=response_dict['upload_link']['fields']['key']
-                QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nDigest: {}".format(self.meta_data_dict['file_uid']))
-                                
+                self.verify_upload()
+
         else: #Something went wrong
             logger.debug(r.text)
             QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
             return
+
+    def verify_upload(self):
+ 		"""
+		This function will get a response from a server for verifying if the uploaded file is authentic
+ 		"""
+ 		url = API_ENDPOINT + "verify_upload"
+        header = {}
+        header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
+        header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
+        try:
+            r = requests.post(url, json=self.body_dict, headers=header)
+        except requests.exceptions.ConnectionError:
+            QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
+            return
+        print(r.status_code)
+        if r.status_code == 200: #This is normal return value
+        	QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nDigest: {}".format(self.meta_data_dict['file_uid']))
 
     def upload_user_input(self):
         self.cont = False #User has to input data in order to complete upload_file() function

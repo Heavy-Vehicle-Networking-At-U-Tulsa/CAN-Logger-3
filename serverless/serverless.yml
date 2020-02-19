@@ -122,6 +122,17 @@ functions:
             type: COGNITO_USER_POOLS
             authorizerId:
               Ref: ApiGatewayAuthorizer
+  verify_upload:
+    handler: handler.verify_upload
+    events:
+      - http:
+          path: verify_upload
+          method: post
+          private: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
   
 # you can add CloudFormation resource templates here
 resources:

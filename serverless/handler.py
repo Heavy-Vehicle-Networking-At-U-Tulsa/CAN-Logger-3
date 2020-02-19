@@ -97,8 +97,36 @@ def upload(event, context):
                                                Key=meta_data_dict["digest"]
                                               )
     body = {"upload_link": signedURL}
-    response(200, body)
+    return response(200, body)
 
+
+def verify_upload(event,context):
+
+    body = json.loads(event['body'])
+    meta_data_bytes = base64.b64decode(body['device_data'])
+    meta_data = meta_data_bytes.decode('ascii').split(",")
+
+    #Verify metadata integrity
+    dbClient = boto3.resource('dynamodb', region_name='us-east-2')
+    table = dbClient.Table("CANLoggers")
+    try:
+        item = table.get_item(
+            Key = {'id': meta_data[4].split(":")[1],}
+            ).get('Item')
+    except:
+        return response(400, "Serial number not found.")
+
+    device_public_key_server = base64.b64decode(item['device_public_key']).decode('ascii')
+    device_public_key_device = meta_data[7].split(":")[1]
+
+    if device_public_key_device != device_public_key_server:
+        return response(400, "Public key from metadata does not match the one from server")
+
+    if not verify_meta_data_text(meta_data_bytes):
+        return response(400, "Metadata failed to verify.")
+    
+    #Send response 
+    '''
     s3 = boto3.resource('s3')
     try:
         s3.download_file(Bucket='can-log-files',
@@ -120,4 +148,6 @@ def upload(event, context):
     
     if meta_data_dict["digest"] != s3_file_digest:
         return respnse(400, "Log file hash does not match")
+    '''
+    return respnse(200, "Test")
 
