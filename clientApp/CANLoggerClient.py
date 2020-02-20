@@ -117,71 +117,104 @@ class CANLogger(QMainWindow):
         menubar = self.menuBar()
 
         #####################
-        # FILE
+        # USER
         #####################
-        file_menu = menubar.addMenu('&File')
-        file_toolbar = self.addToolBar("File")
-        
-        new_file = QAction(QIcon(r'icons/upload_icon.png'), '&Upload', self)
-        new_file.setShortcut('Ctrl+U')
-        new_file.setStatusTip('Upload current file.')
-        new_file.triggered.connect(self.upload_file)
-        file_menu.addAction(new_file)
-        file_toolbar.addAction(new_file)
-
         user_menu = menubar.addMenu('&User')
+        logger_menu = menubar.addMenu('&Logger')
+        server_menu = menubar.addMenu('&Server')
+
+        user_toolbar = self.addToolBar("User")
+        logger_toolbar = self.addToolBar("Logger")
+        server_toolbar = self.addToolBar("Server")
+
+        
         login = QAction(QIcon(r'icons/new_icon.png'), '&Login', self)
         login.setShortcut('Ctrl+L')
         login.setStatusTip('User login.')
         login.triggered.connect(self.login)
         user_menu.addAction(login)
-        file_toolbar.addAction(login)
+        user_toolbar.addAction(login)
 
         hello = QAction(QIcon(r'icons/test_icon.png'), 'Connection &Test', self)
         hello.setShortcut('Ctrl+H')
         hello.setStatusTip('Test Endpoint Authorization.')
         hello.triggered.connect(self.hello)
         user_menu.addAction(hello)
-        file_toolbar.addAction(hello)
+        user_toolbar.addAction(hello)
 
         #####################
         # LOGGER
         #####################
-        logger_menu = menubar.addMenu('&Logger')
-        connect_logger = QAction(QIcon(r'icons/connect_icon.png'), 'C&onnect', self)
-        connect_logger.setShortcut('Ctrl+o')
+        connect_logger = QAction(QIcon(r'icons/connect_icon.png'), 'Connect To &Logger', self)
+        connect_logger.setShortcut('Ctrl+L')
         connect_logger.setStatusTip('Connect a CAN Logger through USB.')
         connect_logger.triggered.connect(self.connect_logger_by_usb)
         logger_menu.addAction(connect_logger)
-        file_toolbar.addAction(connect_logger)
+        logger_toolbar.addAction(connect_logger)
+
+        new_file = QAction(QIcon(r'icons/upload_icon.png'), '&Upload File', self)
+        new_file.setShortcut('Ctrl+U')
+        new_file.setStatusTip('Upload current file.')
+        new_file.triggered.connect(self.upload_file)
+        logger_menu.addAction(new_file)
+        logger_toolbar.addAction(new_file)
+
+        get_key = QAction(QIcon(r'icons/get_key.png'), 'Get &Key/Decrypt File', self)
+        get_key.setShortcut('Ctrl+K')
+        get_key.setStatusTip('Decrypt a session key and decrypt log file.')
+        get_key.triggered.connect(self.get_session_key)
+        logger_menu.addAction(get_key)
+        logger_toolbar.addAction(get_key)
+
+        get_password = QAction(QIcon(r'icons/get_password.png'), 'Get &Password', self)
+        get_password.setShortcut('Ctrl+P')
+        get_password.setStatusTip('Decrypt the server private key password.')
+        get_password.triggered.connect(self.decrypt_password)
+        logger_menu.addAction(get_password)
+        logger_toolbar.addAction(get_password)
 
         format_logger = QAction(QIcon(r'icons/format_icon.png'), '&Format SD', self)
         format_logger.setShortcut('Ctrl+F')
         format_logger.setStatusTip('Format the SD Card on the Data Logger')
         format_logger.triggered.connect(self.format_sd_card)
         logger_menu.addAction(format_logger)
-        file_toolbar.addAction(format_logger)
+        logger_toolbar.addAction(format_logger)
 
         provision_logger = QAction(QIcon(r'icons/provision_icon.png'), '&Provision', self)
-        provision_logger.setShortcut('Ctrl+P')
+        provision_logger.setShortcut('Ctrl+V')
         provision_logger.setStatusTip('Register important data with the server.')
         provision_logger.triggered.connect(self.provision)
         logger_menu.addAction(provision_logger)
-        file_toolbar.addAction(provision_logger)
+        #logger_toolbar.addAction(provision_logger)
 
-        get_key = QAction(QIcon(r'icons/get_key.png'), 'Get &Key', self)
-        get_key.setShortcut('Ctrl+K')
-        get_key.setStatusTip('Decrypt a session key.')
-        get_key.triggered.connect(self.get_session_key)
-        logger_menu.addAction(get_key)
-        file_toolbar.addAction(get_key)
+        #####################
+        # Server
+        #####################
+        connect_server = QAction(QIcon(r'icons/connect_server_icon.png'), 'Connect To &Server', self)
+        connect_server.setShortcut('Ctrl+S')
+        connect_server.setStatusTip('Connect to server and get files.')
+        #connect_server.triggered.connect(self.list_server_file)
+        server_menu.addAction(connect_server)
+        server_toolbar.addAction(connect_server)
 
-        get_password = QAction(QIcon(r'icons/get_password.png'), 'Get &Password', self)
-        get_password.setShortcut('Ctrl+I')
-        get_password.setStatusTip('Decrypt the server private key password.')
-        get_password.triggered.connect(self.decrypt_password)
-        logger_menu.addAction(get_password)
-        file_toolbar.addAction(get_password)
+        server_file = QAction(QIcon(r'icons/download_icon.png'), '&Download File', self)
+        server_file.setShortcut('Ctrl+S')
+        server_file.setStatusTip('Download the selected log file from server.')
+        #server_file.triggered.connect(self.download_server_file)
+        server_menu.addAction(server_file)
+        server_toolbar.addAction(server_file)
+
+        share = QAction(QIcon(r'icons/share_icon.png'), '&Share Access', self)
+        share.setShortcut('Ctrl+S')
+        share.setStatusTip('Give file access to specific user.')
+        #share.triggered.connect(self.share_access)
+        server_menu.addAction(share)
+        server_toolbar.addAction(share)
+
+
+
+
+
 
         self.setWindowTitle("CAN Logger Client Application")
         
@@ -378,6 +411,10 @@ class CANLogger(QMainWindow):
 
 
     def get_session_key(self):
+        if self.meta_data_dict is None:
+            QMessageBox.warning(self,"Select File","Please connect a device and select a file.")
+            return
+
         url = API_ENDPOINT + "auth"
         header = {}
         header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
