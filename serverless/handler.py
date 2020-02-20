@@ -3,7 +3,6 @@ import base64
 import boto3
 import logging
 import sys
-import os
 import hashlib
 
 logger = logging.getLogger()
@@ -125,28 +124,25 @@ def verify_upload(event,context):
     if not verify_meta_data_text(meta_data_bytes):
         return response(400, "Metadata failed to verify.")
     
-    #Send response 
+    #Verify log file integrity 
     s3 = boto3.resource('s3')
+    digest_from_metadata = meta_data[9].split(":")[1]
     try:
-        s3.download_file(Bucket='can-log-files',
-                                    Key=meta_data_dict['digest'],
-                                    Filename= 'tmp/temp.bin')
+        obj = s3.Object('can-log-files',digest_from_metadata)
     except Exception as e:
         return response(400, "Log file cannot be found in s3 Bucket" + repr(e))
-    '''
-    file_size = os.path.getsize('tmp/temp.bin')
+    m = hashlib.sha256()
+    body = obj.get()['Body']
+    size = obj.get()['ContentLength']
     file_location = 0
-    with open('tmp/temp.bin','rb') as file:
-        m = hashlib.sha256()
-        while file_location<file_size:
-            data_buffer = file.read(512)
-            file_location+=512
-            data_buffer.seek(file_location)
-            m.update(data_buffer)
+    while file_location<size:
+        data_buffer = body.read(512)
+        file_location +=512
+        m.update(data_buffer)
     s3_file_digest = m.digest().hex().upper()
+    if not digest_from_metadata == s3_file_digest:
+        obj.delete()
+        #table.delete_item(Key = {'id': meta_data[4].split(":")[1],})
+        return response(400,"Log file hash does not match")
     
-    if meta_data_dict["digest"] != s3_file_digest:
-        return respnse(400, "Log file hash does not match")
-    '''
-    return response(200, "Test")
-
+    return response(200, "Successfully Verify Log File and Metadata!")
