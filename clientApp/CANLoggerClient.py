@@ -879,8 +879,7 @@ class CANLogger(QMainWindow):
         if r.status_code == 200: #This is normal return value
             response_dict = r.json()
             logger.debug(response_dict['upload_link'])
-            if self.encrypted_log_file is None:
-                self.download_file()
+            self.download_file()
 
             r1 = requests.post( response_dict['upload_link']['url'], 
                                 data=response_dict['upload_link']['fields'], 
