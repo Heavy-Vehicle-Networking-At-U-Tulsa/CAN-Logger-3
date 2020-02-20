@@ -11,6 +11,8 @@ logger.setLevel(logging.DEBUG)
 from utils import verify_meta_data_text
 from utils import lambdaResponse as response
 
+from datetime import datetime
+
 def hello(event, context):
     body = {
         "message": "Go Serverless v1.0! Your function executed successfully!",
@@ -55,9 +57,10 @@ def upload(event, context):
     meta_data_dict["text_sha_digest"] = meta_data[10].split(":")[1] #string of characters as bytes
     meta_data_dict["signature"] = meta_data[11].split(":")[1] #string of characters as bytes
     meta_data_dict['access_list'] = [] # Will be a json string for a list at some point. 
-    meta_data_dict['upload_date'] = ' ' # to be filled in after successful verification of file in S3
+    meta_data_dict['upload_date'] = ' ' # to be filled in after verification of file in S3
     meta_data_dict['uploader'] = email # Attribute who uploaded the file
-    meta_data_dict['meta_data'] = user_input_data # User added data 
+    meta_data_dict['meta_data'] = user_input_data # User added data
+    meta_data_dict['verify_status'] = ' '# to be filled in after verification of file in S3
     
     # newUUID = uuid.uuid4()
     # meta_data_dict["id"] = newUUID.hex
@@ -108,6 +111,7 @@ def verify_upload(event,context):
     #Verify metadata integrity
     dbClient = boto3.resource('dynamodb', region_name='us-east-2')
     table = dbClient.Table("CANLoggers")
+    meta_table = dbClient.Table("CanLoggerMetaData")
     try:
         item = table.get_item(
             Key = {'id': meta_data[4].split(":")[1],}
@@ -140,9 +144,27 @@ def verify_upload(event,context):
         file_location +=512
         m.update(data_buffer)
     s3_file_digest = m.digest().hex().upper()
+
+    now = datetime.now()
+    str_time = now.strftime("%m/%d/%yT%H:%M:%S")
+
     if not digest_from_metadata == s3_file_digest:
-        obj.delete()
-        #table.delete_item(Key = {'id': meta_data[4].split(":")[1],})
+        #obj.delete()
+        meta_table.update_item(
+            Key = {'digest':s3_file_digest},
+            UpdateExpression = "SET verify_status= :var1, upload_date= :var2",
+                ExpressionAttributeValues = {
+                    ':var1': 'Not Verified',
+                    ':var2': str_time
+            },)
         return response(400,"Log file hash does not match")
-    
+    else:
+        meta_table.update_item(
+                Key = {'digest':s3_file_digest},
+                UpdateExpression = "SET verify_status= :var1, upload_date= :var2",
+                ExpressionAttributeValues = {
+                    ':var1': 'Verified',
+                    ':var2': str_time
+                },)
+
     return response(200, "Successfully Verify Log File and Metadata!")
