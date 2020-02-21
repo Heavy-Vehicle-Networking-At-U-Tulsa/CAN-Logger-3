@@ -122,11 +122,12 @@ class CANLogger(QMainWindow):
         user_menu = menubar.addMenu('&User')
         logger_menu = menubar.addMenu('&Logger')
         server_menu = menubar.addMenu('&Server')
+        util_menu = menubar.addMenu('&Utility')
 
         user_toolbar = self.addToolBar("User")
         logger_toolbar = self.addToolBar("Logger")
         server_toolbar = self.addToolBar("Server")
-
+        util_toolbar = self.addToolBar("Utility")
         
         login = QAction(QIcon(r'icons/new_icon.png'), '&Login', self)
         login.setShortcut('Ctrl+L')
@@ -166,26 +167,12 @@ class CANLogger(QMainWindow):
         logger_menu.addAction(get_key)
         logger_toolbar.addAction(get_key)
 
-        get_password = QAction(QIcon(r'icons/get_password.png'), 'Get &Password', self)
-        get_password.setShortcut('Ctrl+P')
-        get_password.setStatusTip('Decrypt the server private key password.')
-        get_password.triggered.connect(self.decrypt_password)
-        logger_menu.addAction(get_password)
-        logger_toolbar.addAction(get_password)
-
         format_logger = QAction(QIcon(r'icons/format_icon.png'), '&Format SD', self)
         format_logger.setShortcut('Ctrl+F')
         format_logger.setStatusTip('Format the SD Card on the Data Logger')
         format_logger.triggered.connect(self.format_sd_card)
         logger_menu.addAction(format_logger)
         logger_toolbar.addAction(format_logger)
-
-        provision_logger = QAction(QIcon(r'icons/provision_icon.png'), '&Provision', self)
-        provision_logger.setShortcut('Ctrl+V')
-        provision_logger.setStatusTip('Register important data with the server.')
-        provision_logger.triggered.connect(self.provision)
-        logger_menu.addAction(provision_logger)
-        #logger_toolbar.addAction(provision_logger)
 
         #####################
         # Server
@@ -198,22 +185,35 @@ class CANLogger(QMainWindow):
         server_toolbar.addAction(connect_server)
 
         server_file = QAction(QIcon(r'icons/download_icon.png'), '&Download File', self)
-        server_file.setShortcut('Ctrl+S')
+        server_file.setShortcut('Ctrl+D')
         server_file.setStatusTip('Download the selected log file from server.')
         server_file.triggered.connect(self.download_server_file)
         server_menu.addAction(server_file)
         server_toolbar.addAction(server_file)
 
         share = QAction(QIcon(r'icons/share_icon.png'), '&Share Access', self)
-        share.setShortcut('Ctrl+S')
+        share.setShortcut('Ctrl+A')
         share.setStatusTip('Give file access to specific user.')
-        #share.triggered.connect(self.share_access)
+        share.triggered.connect(self.share_access)
         server_menu.addAction(share)
         server_toolbar.addAction(share)
 
+        #####################
+        # UTILITY
+        #####################
+        get_password = QAction(QIcon(r'icons/get_password.png'), 'Get &Password', self)
+        get_password.setShortcut('Ctrl+P')
+        get_password.setStatusTip('Decrypt the server private key password.')
+        get_password.triggered.connect(self.decrypt_password)
+        util_menu.addAction(get_password)
+        util_toolbar.addAction(get_password)
 
-
-
+        provision_logger = QAction(QIcon(r'icons/provision_icon.png'), '&Provision', self)
+        provision_logger.setShortcut('Ctrl+V')
+        provision_logger.setStatusTip('Register important data with the server.')
+        provision_logger.triggered.connect(self.provision)
+        util_menu.addAction(provision_logger)
+        util_toolbar.addAction(provision_logger)
 
 
         self.setWindowTitle("CAN Logger Client Application")
@@ -411,6 +411,11 @@ class CANLogger(QMainWindow):
 
 
     def get_session_key(self):
+
+        if self.connection_type != 'USB':
+            QMessageBox.warning(self,"Connection Type","Please connect a device and select a file.")
+            return
+
         if self.meta_data_dict is None:
             QMessageBox.warning(self,"Select File","Please connect a device and select a file.")
             return
@@ -420,6 +425,7 @@ class CANLogger(QMainWindow):
             logger.warning(message)
             QMessageBox.warning(self,"Invalid Token",message)
             return
+
 
         url = API_ENDPOINT + "auth"
         header = {}
@@ -466,7 +472,7 @@ class CANLogger(QMainWindow):
                 options |= QFileDialog.Detail
                 self.data_file_name, data_file_type = QFileDialog.getSaveFileName(self,
                                                     "Save File",
-                                                    self.home_directory + "/" + self.meta_data_dict["filename"] + "-decrypted",
+                                                    self.home_directory + "/" + self.meta_data_dict["filename"][:-4] + "_plaintext",
                                                     "BIN Files (*.bin);;All Files (*)",
                                                     options = options)
                 if self.data_file_name:
@@ -518,6 +524,8 @@ class CANLogger(QMainWindow):
 
 
     def connect_logger_by_usb(self):
+        self.connection_type = 'USB'
+
         items =[] 
         for device in serial.tools.list_ports.comports():
             items.append("{} - {}".format(device.device, device.description))
@@ -856,6 +864,10 @@ class CANLogger(QMainWindow):
    
 
     def upload_file(self):
+        if self.connection_type != 'USB':
+            QMessageBox.warning(self,"Connection Type","Please connect a device and select a file.")
+            return
+
         if self.meta_data_dict is None:
             QMessageBox.warning(self,"Select File","Please connect a device and select a file.")
             return
@@ -865,6 +877,7 @@ class CANLogger(QMainWindow):
             logger.warning(message)
             QMessageBox.warning(self,"Invalid Token",message)
             return
+
 
         url = API_ENDPOINT + "upload"
         header = {}
@@ -994,6 +1007,8 @@ class CANLogger(QMainWindow):
             QMessageBox.warning(self,"Invalid Token",message)
             return
 
+        self.connection_type = 'Server'
+
         url = API_ENDPOINT + "list"
         header = {}
         header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
@@ -1013,22 +1028,22 @@ class CANLogger(QMainWindow):
             return
 
 
-        header_labels = ["Date & Time",
-                         "CAN0 Bitrate",
-                         "CAN1 Bitrate",
-                         "Filename",
-                         "Logger Serial Number",
-                         "Initialization Vector",
-                         "Encrypted Session Key",
-                         "Size",
-                         "Binary File SHA-256 Hash Digest",
-                         "Text File SHA-256 Hash Digest",
-                         "Digital Signature of Text SHA Digest",
-                         "Verification Status",
-                         "Uploader",
-                         "Upload Date (UTC)",
-                         "Access List",
-                         "User Input"]
+        header_labels = ["Upload Date",
+                        "Verification Status",
+                        "Filename",
+                        "Log Date",
+                        "File Size",
+                        "CAN0 Bitrate",
+                        "CAN1 Bitrate",
+                        "Uploader",
+                        "Access List",
+                        "Logger Serial Number",
+                        "Initialization Vector",
+                        "Encrypted Session Key",
+                        "Binary File SHA-256 Hash Digest",
+                        "Text File SHA-256 Hash Digest",
+                        "Digital Signature of Text SHA Digest",
+                        "User Note"]
 
         NUM_COLS = len(header_labels)
         NUM_ROWS = len(self.server_data['Items'])
@@ -1042,21 +1057,21 @@ class CANLogger(QMainWindow):
         self.grid_layout.addWidget(self.server_file_table ,0,0,1,1)
         row = 0
         for i in range(NUM_ROWS):
-            self.server_file_table.setItem(row,0,QTableWidgetItem(self.server_data['Items'][i]['datetime']))
-            self.server_file_table.setItem(row,1,QTableWidgetItem(self.server_data['Items'][i]['CAN0']))
-            self.server_file_table.setItem(row,2,QTableWidgetItem(self.server_data['Items'][i]['CAN1']))
-            self.server_file_table.setItem(row,3,QTableWidgetItem(self.server_data['Items'][i]['filename']))
-            self.server_file_table.setItem(row,4,QTableWidgetItem(self.server_data['Items'][i]['serial_num']))
-            self.server_file_table.setItem(row,5,QTableWidgetItem(self.server_data['Items'][i]['init_vect']))
-            self.server_file_table.setItem(row,6,QTableWidgetItem(self.server_data['Items'][i]['session_key']))
-            self.server_file_table.setItem(row,7,QTableWidgetItem(self.server_data['Items'][i]['filesize']))
-            self.server_file_table.setItem(row,8,QTableWidgetItem(self.server_data['Items'][i]['digest']))
-            self.server_file_table.setItem(row,9,QTableWidgetItem(self.server_data['Items'][i]['text_sha_digest']))
-            self.server_file_table.setItem(row,10,QTableWidgetItem(self.server_data['Items'][i]['signature']))
-            self.server_file_table.setItem(row,11,QTableWidgetItem(self.server_data['Items'][i]['verify_status']))
-            self.server_file_table.setItem(row,12,QTableWidgetItem(self.server_data['Items'][i]['uploader']))
-            self.server_file_table.setItem(row,13,QTableWidgetItem(self.server_data['Items'][i]['upload_date']))
-            self.server_file_table.setItem(row,14,QTableWidgetItem(str(self.server_data['Items'][i]['access_list'])))
+            self.server_file_table.setItem(row,0,QTableWidgetItem(self.server_data['Items'][i]['upload_date']))
+            self.server_file_table.setItem(row,1,QTableWidgetItem(self.server_data['Items'][i]['verify_status']))
+            self.server_file_table.setItem(row,2,QTableWidgetItem(self.server_data['Items'][i]['filename']))
+            self.server_file_table.setItem(row,3,QTableWidgetItem(self.server_data['Items'][i]['datetime']))
+            self.server_file_table.setItem(row,4,QTableWidgetItem(self.server_data['Items'][i]['filesize']))
+            self.server_file_table.setItem(row,5,QTableWidgetItem(self.server_data['Items'][i]['CAN0']))
+            self.server_file_table.setItem(row,6,QTableWidgetItem(self.server_data['Items'][i]['CAN1']))
+            self.server_file_table.setItem(row,7,QTableWidgetItem(self.server_data['Items'][i]['uploader']))
+            self.server_file_table.setItem(row,8,QTableWidgetItem(str(self.server_data['Items'][i]['access_list'])))
+            self.server_file_table.setItem(row,9,QTableWidgetItem(self.server_data['Items'][i]['serial_num']))
+            self.server_file_table.setItem(row,10,QTableWidgetItem(self.server_data['Items'][i]['init_vect']))
+            self.server_file_table.setItem(row,11,QTableWidgetItem(self.server_data['Items'][i]['session_key']))
+            self.server_file_table.setItem(row,12,QTableWidgetItem(self.server_data['Items'][i]['digest']))
+            self.server_file_table.setItem(row,13,QTableWidgetItem(self.server_data['Items'][i]['text_sha_digest']))
+            self.server_file_table.setItem(row,14,QTableWidgetItem(self.server_data['Items'][i]['signature']))
             self.server_file_table.setItem(row,15,QTableWidgetItem(str(self.server_data['Items'][i]['meta_data'])))
 
             row +=1
@@ -1068,12 +1083,18 @@ class CANLogger(QMainWindow):
     def load_server_meta_data(self):
         self.server_meta_data_dict = {}
         row = self.server_file_table.currentRow()
-        self.server_meta_data_dict["digest"] = self.server_file_table.item(row,8).text()
-        self.server_meta_data_dict["serial_num"] = self.server_file_table.item(row,4).text()
+        self.server_meta_data_dict["digest"] = self.server_file_table.item(row,12).text()
+        self.server_meta_data_dict["serial_num"] = self.server_file_table.item(row,9).text()
+        self.server_meta_data_dict["filename"] = self.server_file_table.item(row,2).text()
+        self.server_meta_data_dict["init_vect"] = self.server_file_table.item(row,10).text()
         for k,v in self.server_meta_data_dict.items():
             logger.debug("{}: {}".format(k,v))
 
     def download_server_file(self):
+        if self.connection_type != 'Server':
+            QMessageBox.warning(self,"Connection Type","Please connect to server and select a file.")
+            return
+
         if self.server_meta_data_dict is None:
             QMessageBox.warning(self,"Select File","Please connect to server and select a file.")
             return
@@ -1100,13 +1121,64 @@ class CANLogger(QMainWindow):
             data_dict = r.json()
             log_file = base64.b64decode(data_dict['log_file'])
             session_key = base64.b64decode(data_dict['session_key'])
-            print("data:",log_file.hex().upper())
-            print("key:",session_key.hex().upper())
+
+
+            #Ask user to save log file as encrypted or plaintext version
+            msg = QMessageBox()
+            msg.setText("What version do you want to save your log file on your local computer?")
+            msg.setWindowTitle("Save Option")
+            msg.setIcon(QMessageBox.Question)
+            button1 = msg.addButton(str('Encrypted Log File'),QMessageBox.ActionRole)
+            button2 = msg.addButton(str('Plaintext Log File'),QMessageBox.ActionRole)
+            msg.setStandardButtons(QMessageBox.Cancel)
+            msg.exec_()
+
+            #If choose encrypted
+            if msg.clickedButton() == button1:
+                output = log_file
+                output_name = self.server_meta_data_dict["filename"][:-4]
+
+            #If choose plaintext
+            else:
+                iv = bytearray.fromhex(self.server_meta_data_dict["init_vect"])
+                cipher = Cipher(algorithms.AES(session_key),
+                                    modes.CBC(iv),
+                                    backend = default_backend())
+                decryptor = cipher.decryptor()
+                output = decryptor.update(log_file) + decryptor.finalize()
+                output_name = self.server_meta_data_dict["filename"][:-4] +'_plaintext'
+
+            options = QFileDialog.Options()
+            options |= QFileDialog.Detail
+            self.data_file_name, data_file_type = QFileDialog.getSaveFileName(self,
+                                                "Save File",
+                                                self.home_directory + "/" + output_name,
+                                                "BIN Files (*.bin);;All Files (*)",
+                                                options = options)
+            if self.data_file_name:
+                with open(self.data_file_name, 'wb') as file:
+                    file.write(output)
+                    file.close()
 
 
         else: #Something went wrong
             logger.debug(r.text)
             QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
+            return
+
+    def share_access(self):
+        if self.connection_type != 'Server':
+            QMessageBox.warning(self,"Connection Type","Please connect to server and select a file.")
+            return
+
+        if self.server_meta_data_dict is None:
+            QMessageBox.warning(self,"Select File","Please connect to server and select a file.")
+            return
+
+        if not decode_jwt(self.identity_token):
+            message = "A valid webtoken is not available to download. Please login."
+            logger.warning(message)
+            QMessageBox.warning(self,"Invalid Token",message)
             return
 
 if __name__.endswith('__main__'):

@@ -140,10 +140,9 @@ def verify_upload(event,context):
     s3_file_digest = hashlib.sha256(body).digest().hex().upper()
 
     now = datetime.now()
-    str_time = now.strftime("%m-%d-%yT%H:%M:%S")
+    str_time = now.strftime("%Y-%m-%dT%H:%M:%S")
 
     if not digest_from_metadata == s3_file_digest:
-        #obj.delete()
         meta_table.update_item(
             Key = {'digest':s3_file_digest},
             UpdateExpression = "SET verify_status= :var1, upload_date= :var2",
