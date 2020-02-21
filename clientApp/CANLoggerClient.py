@@ -633,6 +633,7 @@ class CANLogger(QMainWindow):
             ret_val += character
         
         response=ret_val.split(b'\r\n')
+        print("LS A:")
         logger.debug(response)
         
         for line in response:
@@ -980,6 +981,12 @@ class CANLogger(QMainWindow):
         self.window.reject()
 
     def list_server_file(self):
+        if not decode_jwt(self.identity_token):
+            message = "A valid webtoken is not available to connect to server. Please login."
+            logger.warning(message)
+            QMessageBox.warning(self,"Invalid Token",message)
+            return
+
         url = API_ENDPOINT + "list"
         header = {}
         header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
@@ -991,12 +998,64 @@ class CANLogger(QMainWindow):
             return
         logger.debug(r.status_code)
         if r.status_code == 200: #This is normal return value    
-            logger.debug(r.json())
-            QMessageBox.information(self,"Success","The server responded with code 200:\n{}".format(r.json()))
+            self.server_data = r.json()
+            logger.debug(self.server_data)
         else: #Something went wrong
             logger.debug(r.text)
             QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
+            return
 
+
+        header_labels = ["Date & Time",
+                         "CAN0 Bitrate",
+                         "CAN1 Bitrate",
+                         "Filename",
+                         "Logger Serial Number",
+                         "Initialization Vector",
+                         "Encrypted Session Key",
+                         "Size",
+                         "Binary File SHA-256 Hash Digest",
+                         "Text File SHA-256 Hash Digest",
+                         "Digital Signature of Text SHA Digest",
+                         "Verification Status",
+                         "Uploader",
+                         "Upload Date (UTC)",
+                         "Access List",
+                         "User Input"]
+
+        NUM_COLS = len(header_labels)
+        NUM_ROWS = len(self.server_data['Items'])
+
+        self.server_file_table = QTableWidget(NUM_ROWS,NUM_COLS,self)
+        self.server_file_table.setHorizontalHeaderLabels(header_labels)
+        self.server_file_table.setSelectionBehavior(QTableView.SelectRows);
+        #self.server_file_table.doubleClicked.connect(self.download_server_file)
+        #self.server_file_table.itemSelectionChanged.connect(self.load_server_meta_data)
+        self.server_file_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.grid_layout.addWidget(self.server_file_table ,0,0,1,1)
+        row = 0
+        for i in range(NUM_ROWS):
+            self.server_file_table.setItem(row,0,QTableWidgetItem(self.server_data['Items'][i]['datetime']))
+            self.server_file_table.setItem(row,1,QTableWidgetItem(self.server_data['Items'][i]['CAN0']))
+            self.server_file_table.setItem(row,2,QTableWidgetItem(self.server_data['Items'][i]['CAN1']))
+            self.server_file_table.setItem(row,3,QTableWidgetItem(self.server_data['Items'][i]['filename']))
+            self.server_file_table.setItem(row,4,QTableWidgetItem(self.server_data['Items'][i]['serial_num']))
+            self.server_file_table.setItem(row,5,QTableWidgetItem(self.server_data['Items'][i]['init_vect']))
+            self.server_file_table.setItem(row,6,QTableWidgetItem(self.server_data['Items'][i]['session_key']))
+            self.server_file_table.setItem(row,7,QTableWidgetItem(self.server_data['Items'][i]['filesize']))
+            self.server_file_table.setItem(row,8,QTableWidgetItem(self.server_data['Items'][i]['digest']))
+            self.server_file_table.setItem(row,9,QTableWidgetItem(self.server_data['Items'][i]['text_sha_digest']))
+            self.server_file_table.setItem(row,10,QTableWidgetItem(self.server_data['Items'][i]['signature']))
+            self.server_file_table.setItem(row,11,QTableWidgetItem(self.server_data['Items'][i]['verify_status']))
+            self.server_file_table.setItem(row,12,QTableWidgetItem(self.server_data['Items'][i]['uploader']))
+            self.server_file_table.setItem(row,13,QTableWidgetItem(self.server_data['Items'][i]['upload_date']))
+            self.server_file_table.setItem(row,14,QTableWidgetItem(str(self.server_data['Items'][i]['access_list'])))
+            self.server_file_table.setItem(row,15,QTableWidgetItem(str(self.server_data['Items'][i]['meta_data'])))
+
+            row +=1
+
+        self.server_file_table.resizeColumnsToContents()
+        return
 
 if __name__.endswith('__main__'):
     app = QApplication(sys.argv)
