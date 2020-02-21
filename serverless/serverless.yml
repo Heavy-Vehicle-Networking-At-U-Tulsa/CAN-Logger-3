@@ -133,6 +133,17 @@ functions:
             type: COGNITO_USER_POOLS
             authorizerId:
               Ref: ApiGatewayAuthorizer
+  download:
+    handler: download.download
+    events:
+      - http:
+          path: download
+          method: post
+          private: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
   
 # you can add CloudFormation resource templates here
 resources:

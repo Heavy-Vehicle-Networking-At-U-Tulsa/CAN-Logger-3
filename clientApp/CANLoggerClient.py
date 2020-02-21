@@ -200,7 +200,7 @@ class CANLogger(QMainWindow):
         server_file = QAction(QIcon(r'icons/download_icon.png'), '&Download File', self)
         server_file.setShortcut('Ctrl+S')
         server_file.setStatusTip('Download the selected log file from server.')
-        #server_file.triggered.connect(self.download_server_file)
+        server_file.triggered.connect(self.download_server_file)
         server_menu.addAction(server_file)
         server_toolbar.addAction(server_file)
 
@@ -219,13 +219,13 @@ class CANLogger(QMainWindow):
         self.setWindowTitle("CAN Logger Client Application")
         
         self.meta_data_dict       = None
+        self.server_meta_data_dict= None
         self.access_token         = None
         self.identity_token       = None
         self.refresh_token        = None
         self.connected            = False
         self.encrypted_log_file   = None
         self.session_key          = None
-        self.encrypted_log_file   = None
 
 
         initial_message = QLabel("Connect to a CAN Logger to see files (Ctrl+O).")
@@ -711,6 +711,7 @@ class CANLogger(QMainWindow):
                 logger.debug("Removing row {}".format(row))
                 continue    
         self.device_file_table.resizeColumnsToContents()
+        self.device_file_table.setSortingEnabled(True)
         return
          
 
@@ -1029,8 +1030,8 @@ class CANLogger(QMainWindow):
         self.server_file_table = QTableWidget(NUM_ROWS,NUM_COLS,self)
         self.server_file_table.setHorizontalHeaderLabels(header_labels)
         self.server_file_table.setSelectionBehavior(QTableView.SelectRows);
-        #self.server_file_table.doubleClicked.connect(self.download_server_file)
-        #self.server_file_table.itemSelectionChanged.connect(self.load_server_meta_data)
+        self.server_file_table.doubleClicked.connect(self.download_server_file)
+        self.server_file_table.itemSelectionChanged.connect(self.load_server_meta_data)
         self.server_file_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.grid_layout.addWidget(self.server_file_table ,0,0,1,1)
         row = 0
@@ -1055,7 +1056,52 @@ class CANLogger(QMainWindow):
             row +=1
 
         self.server_file_table.resizeColumnsToContents()
+        self.server_file_table.setSortingEnabled(True)
         return
+
+    def load_server_meta_data(self):
+        self.server_meta_data_dict = {}
+        row = self.server_file_table.currentRow()
+        self.server_meta_data_dict["digest"] = self.server_file_table.item(row,8).text()
+        self.server_meta_data_dict["serial_num"] = self.server_file_table.item(row,4).text()
+        for k,v in self.server_meta_data_dict.items():
+            logger.debug("{}: {}".format(k,v))
+
+    def download_server_file(self):
+        if self.server_meta_data_dict is None:
+            QMessageBox.warning(self,"Select File","Please connect to server and select a file.")
+            return
+
+        if not decode_jwt(self.identity_token):
+            message = "A valid webtoken is not available to download. Please login."
+            logger.warning(message)
+            QMessageBox.warning(self,"Invalid Token",message)
+            return
+
+        url = API_ENDPOINT + "download"
+        header = {}
+        header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
+        header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
+
+        try:
+            r = requests.post(url, json = self.server_meta_data_dict, headers=header)
+        except requests.exceptions.ConnectionError:
+            QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
+            return
+        print(r.status_code)
+
+        if r.status_code ==200: #This is normal return value
+            data_dict = r.json()
+            log_file = base64.b64decode(data_dict['log_file']).decode('ascii')
+            session_key = base64.b64decode(data_dict['session_key']).decode('ascii')
+            print("data:",log_file.hex().upper())
+            print("key:",session_key.hex().upper())
+
+
+        else: #Something went wrong
+            logger.debug(r.text)
+            QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
+            return
 
 if __name__.endswith('__main__'):
     app = QApplication(sys.argv)
