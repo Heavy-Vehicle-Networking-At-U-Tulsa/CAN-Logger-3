@@ -193,7 +193,7 @@ class CANLogger(QMainWindow):
         connect_server = QAction(QIcon(r'icons/connect_server_icon.png'), 'Connect To &Server', self)
         connect_server.setShortcut('Ctrl+S')
         connect_server.setStatusTip('Connect to server and get files.')
-        #connect_server.triggered.connect(self.list_server_file)
+        connect_server.triggered.connect(self.list_server_file)
         server_menu.addAction(connect_server)
         server_toolbar.addAction(connect_server)
 
@@ -978,6 +978,25 @@ class CANLogger(QMainWindow):
 
     def reject(self):  
         self.window.reject()
+
+    def list_server_file(self):
+        url = API_ENDPOINT + "list"
+        header = {}
+        header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
+        header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
+        try:
+            r = requests.get(url, headers=header)
+        except requests.exceptions.ConnectionError:
+            QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
+            return
+        logger.debug(r.status_code)
+        if r.status_code == 200: #This is normal return value    
+            logger.debug(r.json())
+            QMessageBox.information(self,"Success","The server responded with code 200:\n{}".format(r.json()))
+        else: #Something went wrong
+            logger.debug(r.text)
+            QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
+
 
 if __name__.endswith('__main__'):
     app = QApplication(sys.argv)

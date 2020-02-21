@@ -11,10 +11,10 @@ from utils import lambdaResponse as response
 from boto3.dynamodb.conditions import Key, Attr
 
 def list_files(event, context):
-	"""
-	Returns a dictionary for file on S3 that have been uploaded by the user.
-	"""
-	requester_data = event["requestContext"]
+    """
+    Returns a metadata dictionary for files on S3 that have been uploaded by the user.
+    """
+    requester_data = event["requestContext"]
     if requester_data["authorizer"]["claims"]["email_verified"]:
         email = requester_data["authorizer"]["claims"]["email"]
     else:
@@ -22,11 +22,10 @@ def list_files(event, context):
 
     # Lookup the data needed from the unique CAN Logger by its serial number
     dbClient = boto3.resource('dynamodb', region_name='us-east-2')
-    table = dbClient.Table("CANLoggerMetaData")
+    table = dbClient.Table("CanLoggerMetaData")
     try:
-        records = table.query( 
-            IndexName = 'email_index',
-            KeyConditionExpression = Key('uploader').eq(email)
+        records = table.scan( 
+            FilterExpression = Attr('uploader').eq(email)
         )
     except:
         return response(400, "Unable to retrieve table item.")

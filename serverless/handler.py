@@ -46,13 +46,13 @@ def upload(event, context):
     meta_data = meta_data_bytes.decode('ascii').split(",")
     meta_data_dict = {}
     meta_data_dict["datetime"] = meta_data[0] #String of YYYY-MM-DDTHH:MM:SS
-    meta_data_dict["CAN0"] = int(meta_data[1]) # CAN Bitrate
-    meta_data_dict["CAN1"] = int(meta_data[2]) # CAN Bitrate
+    meta_data_dict["CAN0"] = meta_data[1] # CAN Bitrate
+    meta_data_dict["CAN1"] = meta_data[2] # CAN Bitrate
     meta_data_dict["filename"] = meta_data[3] # SD Card filename
     meta_data_dict["serial_num"] = meta_data[4].split(":")[1] # Unique ID as a string from the ATECC608 Chip
     meta_data_dict["init_vect"] = meta_data[5].split(":")[1] #string of hex characters as bytes
     meta_data_dict["session_key"] = meta_data[6].split(":")[1] #string of hex characters as bytes
-    meta_data_dict["filesize"] = int(meta_data[8].split(":")[1]) # number of bytes
+    meta_data_dict["filesize"] = meta_data[8].split(":")[1] # number of bytes
     meta_data_dict["digest"] = meta_data[9].split(":")[1] #string of hex characters as bytes
     meta_data_dict["text_sha_digest"] = meta_data[10].split(":")[1] #string of characters as bytes
     meta_data_dict["signature"] = meta_data[11].split(":")[1] #string of characters as bytes
