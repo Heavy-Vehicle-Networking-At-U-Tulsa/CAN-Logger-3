@@ -415,6 +415,12 @@ class CANLogger(QMainWindow):
             QMessageBox.warning(self,"Select File","Please connect a device and select a file.")
             return
 
+        if not decode_jwt(self.identity_token):
+            message = "A valid webtoken is not available to get data. Please login."
+            logger.warning(message)
+            QMessageBox.warning(self,"Invalid Token",message)
+            return
+
         url = API_ENDPOINT + "auth"
         header = {}
         header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
@@ -1092,8 +1098,8 @@ class CANLogger(QMainWindow):
 
         if r.status_code ==200: #This is normal return value
             data_dict = r.json()
-            log_file = base64.b64decode(data_dict['log_file']).decode('ascii')
-            session_key = base64.b64decode(data_dict['session_key']).decode('ascii')
+            log_file = base64.b64decode(data_dict['log_file'])
+            session_key = base64.b64decode(data_dict['session_key'])
             print("data:",log_file.hex().upper())
             print("key:",session_key.hex().upper())
 

@@ -135,18 +135,12 @@ def verify_upload(event,context):
         obj = s3.Object('can-log-files',digest_from_metadata)
     except Exception as e:
         return response(400, "Log file cannot be found in s3 Bucket" + repr(e))
-    m = hashlib.sha256()
-    body = obj.get()['Body']
-    size = obj.get()['ContentLength']
-    file_location = 0
-    while file_location<size:
-        data_buffer = body.read(512)
-        file_location +=512
-        m.update(data_buffer)
-    s3_file_digest = m.digest().hex().upper()
+
+    body = obj.get()['Body'].read()
+    s3_file_digest = hashlib.sha256(body).digest().hex().upper()
 
     now = datetime.now()
-    str_time = now.strftime("%m/%d/%yT%H:%M:%S")
+    str_time = now.strftime("%m-%d-%yT%H:%M:%S")
 
     if not digest_from_metadata == s3_file_digest:
         #obj.delete()
