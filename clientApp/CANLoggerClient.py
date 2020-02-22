@@ -226,6 +226,7 @@ class CANLogger(QMainWindow):
         self.connected            = False
         self.encrypted_log_file   = None
         self.session_key          = None
+        self.connection_type      = None
 
 
         initial_message = QLabel("Connect to a CAN Logger to see files (Ctrl+O).")

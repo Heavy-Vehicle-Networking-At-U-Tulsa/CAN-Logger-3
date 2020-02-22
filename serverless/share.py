@@ -46,9 +46,19 @@ def share(event, context):
         return response(400, "File digest not found.")
 
     access_list = item['access_list']
-    print(access_list)
-    print(type(access_list))
 
+    if body['option'] == 'Share':
+        access_list.append(body['email_access'])
+    else:
+        if body['email_access'] in access_list:
+            index = access_list.index(body['email_access'])
+            access_list.pop(index)
+        else:
+            return response(400,"There is no {} in access list to revoke access.".format(body['email_access']))
+
+    table.update_item(
+        Key = {'digest':body['digest']},
+        UpdateExpression = 'SET access_list= :var',
+        ExpressionAttributeValues = {':var':access_list},)
     
-    return response(200, "success")
-
+    return response(200, "{} has been added to access list.".format(body['email_access']))
