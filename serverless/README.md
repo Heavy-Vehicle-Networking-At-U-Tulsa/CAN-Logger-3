@@ -136,16 +136,17 @@ aws_secret_access_key = **************************************RA
 
   6. Install NodeJS. Information can be found here:https://tecadmin.net/install-latest-nodejs-npm-on-ubuntu/
     First, the system needs to be updated to ensure there is no dependency issues: 
-    ```
-    sudo apt update
-    sudo apt -y upgrade
-    ```
+```
+sudo apt update
+sudo apt -y upgrade
+```
+ 
     Install nodejs:
-    ```
-    sudo apt-get install curl
-    curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
-    sudo apt-get install nodejs
-    ```
+```
+sudo apt-get install curl
+curl -sL https://deb.nodesource.com/setup_12.x | sudo -E bash -
+sudo apt-get install nodejs
+```
   7. Verify node works: `node --version` should produce something like `v12.16.1`. 
   8. Install the serverless package from Terminal: `sudo npm install -g serverless`. 
   9. Verify serverless is available by entering `sls --version` at Terminal. You should get something like this in response:
@@ -218,14 +219,9 @@ Be sure to have completed the installation so AWS-CLI, NodeJS, and Serverless ar
   3. Clone the CAN-Logger-3 repository: `git clone https://github.com/SystemsCyber/CAN-Logger-3`
   4. Change to serverless branch by `git checkout remotes/origin/serverless`
   5. Change directory to serverless: `cd serverless`
-  6. Make sure we have python3.7 and pip installed:
-    ```
-    sudo apt-get install python3.7
-    sudo apt-get install python3-pip
-    ```
-  7. Since we are writing in Python, please be sure to include the Requirements.
+  6. Since we are writing in Python, please be sure to include the Requirements.
 `sudo sls plugin install -n serverless-python-requirements`
-  8. You can now code and deploy by adding functions to `serverless.yml` and deploying them with `sls deploy`. A successful deployment will look like this: 
+  7. You can now code and deploy by adding functions to `serverless.yml` and deploying them with `sls deploy`. A successful deployment will look like this: 
  ```
 Serverless: Generated requirements from /home/duyvan/Desktop/CAN-Logger-3/serverless/requirements.txt in /home/duyvan/Desktop/CAN-Logger-3/serverless/.serverless/requirements.txt...
 Serverless: Using static cache of requirements found at /home/duyvan/.cache/serverless-python-requirements/4e278019ee5efbe27b17fbb79510073a1c8a007b651c349fb11dde0d59df647f_slspyc ...
