@@ -144,6 +144,17 @@ functions:
             type: COGNITO_USER_POOLS
             authorizerId:
               Ref: ApiGatewayAuthorizer
+  share:
+    handler: share.share
+    events:
+      - http:
+          path: share
+          method: post
+          private: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
   
 # you can add CloudFormation resource templates here
 resources:

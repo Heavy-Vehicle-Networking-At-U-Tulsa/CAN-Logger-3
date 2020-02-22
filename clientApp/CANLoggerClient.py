@@ -984,12 +984,12 @@ class CANLogger(QMainWindow):
 
     def get_data(self):
         self.user_input_dict = {}
-        self.user_input_dict['Name'] = (self.name.text())
-        self.user_input_dict['Company'] =(self.company.text())
-        self.user_input_dict['Make'] =(self.make.currentText())
-        self.user_input_dict['Model'] =(self.model.text())
-        self.user_input_dict['Year'] =(self.year.currentText())
-        self.user_input_dict['Note'] =(self.note.toPlainText())
+        self.user_input_dict['Name'] = self.name.text()
+        self.user_input_dict['Company'] =self.company.text()
+        self.user_input_dict['Make'] =self.make.currentText()
+        self.user_input_dict['Model'] =self.model.text()
+        self.user_input_dict['Year'] =self.year.currentText()
+        self.user_input_dict['Note'] =self.note.toPlainText()
 
         for i in self.user_input_dict:
             if self.user_input_dict[i] =="":
@@ -1180,6 +1180,74 @@ class CANLogger(QMainWindow):
             logger.warning(message)
             QMessageBox.warning(self,"Invalid Token",message)
             return
+        self.status = False
+        body_dict = {}
+        body_dict["digest"] = self.server_meta_data_dict["digest"]
+        #Ask user to save log file as encrypted or plaintext version
+        msg = QMessageBox()
+        msg.setText("Do you want to share or revoke access?")
+        msg.setWindowTitle("Share Access")
+        msg.setIcon(QMessageBox.Question)
+        button1 = msg.addButton(str('Share'),QMessageBox.ActionRole)
+        button2 = msg.addButton(str('Revoke'),QMessageBox.ActionRole)
+        msg.setStandardButtons(QMessageBox.Cancel)
+        msg.exec_()
+
+        if msg.clickedButton() == button1:
+            body_dict["option"] = 'Share'
+        else:
+            body_dict["option"] = 'Revoke'
+
+        formGroupBox = QGroupBox("User Input")
+        layout = QFormLayout()
+        self.email_access = QLineEdit()
+        layout.addRow(QLabel('Email:'),self.email_access)
+
+        formGroupBox.setLayout(layout)
+        buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttonBox.accepted.connect(self.get_email)
+        buttonBox.rejected.connect(self.reject)
+
+        self.window = QDialog()
+        mainLayout = QVBoxLayout(self.window)
+        mainLayout.addWidget(formGroupBox)
+        mainLayout.addWidget(buttonBox)
+        self.window.setLayout(mainLayout)
+        self.window.setWindowTitle("Share Access")
+        self.window.exec()
+
+        if self.status:
+            body_dict["email_access"] = self.email_input
+
+            url = API_ENDPOINT + "share"
+            header = {}
+            header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
+            header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
+            try:
+                r = requests.post(url, json = body_dict, headers=header)
+            except requests.exceptions.ConnectionError:
+                QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
+                return
+            print(r.status_code)
+
+            if r.status_code == 200: #This is normal return value    
+                logger.debug(r.text)
+                QMessageBox.information(self,"Success",r.text)
+            else: #Something went wrong
+                logger.debug(r.text)
+                QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
+
+            #Refresh server file table
+            self.list_server_file()
+
+
+    def get_email(self):
+        self.email_input = self.email_access.text()
+        if self.email_input =="":
+            QMessageBox.warning(self,"Input Error","Cannot leave the input blank")
+            return
+        self.status = True
+        self.window.accept()
 
 if __name__.endswith('__main__'):
     app = QApplication(sys.argv)
