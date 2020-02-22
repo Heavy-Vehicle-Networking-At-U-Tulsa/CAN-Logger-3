@@ -4,14 +4,15 @@ import boto3
 import logging
 import sys
 import hashlib
+import time
 
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 
 from utils import verify_meta_data_text
 from utils import lambdaResponse as response
+from utils import get_timestamp
 
-from datetime import datetime
 
 def hello(event, context):
     body = {
@@ -56,11 +57,12 @@ def upload(event, context):
     meta_data_dict["digest"] = meta_data[9].split(":")[1] #string of hex characters as bytes
     meta_data_dict["text_sha_digest"] = meta_data[10].split(":")[1] #string of characters as bytes
     meta_data_dict["signature"] = meta_data[11].split(":")[1] #string of characters as bytes
-    meta_data_dict['access_list'] = [] # Will be a json string for a list at some point. 
-    meta_data_dict['upload_date'] = ' ' # to be filled in after verification of file in S3
-    meta_data_dict['uploader'] = email # Attribute who uploaded the file
-    meta_data_dict['meta_data'] = user_input_data # User added data
-    meta_data_dict['verify_status'] = ' '# to be filled in after verification of file in S3
+    meta_data_dict["access_list"] = [] #List of email addresses who have view and download access to the file 
+    meta_data_dict["upload_date"] = ' ' # to be filled in after verification of file in S3
+    meta_data_dict["uploader"] = email # Attribute who uploaded the file
+    meta_data_dict["meta_data"] = user_input_data # User added data
+    meta_data_dict["verify_status"] = ' '# to be filled in after verification of file in S3
+    meta_data_dict["download_log"] = [] #Log the identity of the user and the time when the file is downloaded
     
     # newUUID = uuid.uuid4()
     # meta_data_dict["id"] = newUUID.hex
@@ -139,8 +141,7 @@ def verify_upload(event,context):
     body = obj.get()['Body'].read()
     s3_file_digest = hashlib.sha256(body).digest().hex().upper()
 
-    now = datetime.now()
-    str_time = now.strftime("%Y-%m-%dT%H:%M:%S")
+    str_time = get_timestamp(time.time())
 
     if not digest_from_metadata == s3_file_digest:
         meta_table.update_item(

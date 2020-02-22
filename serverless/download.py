@@ -109,7 +109,22 @@ def download(event, context):
     log_file = obj.get()['Body'].read()
     encoded_log_file = base64.b64encode(log_file).decode('ascii')
     encoded_clear_key = base64.b64encode(clear_key).decode('ascii')
-    data = {'log_file':encoded_log_file,'session_key':encoded_clear_key} 
+    data = {'log_file':encoded_log_file,'session_key':encoded_clear_key}
+
+    # set attribution data
+    timestamp = get_timestamp(time.time())
+    access_tuple = (timestamp, email, ip_address)
+    print("Access Tuple: {}".format(access_tuple))
+    download_list = item["download_log"]
+    download_list.append(access_tuple)
+
+    #update the download log with the user details.
+    table.update_item(
+        Key = {'digest':body['digest']},
+        UpdateExpression = 'SET download_log= :var',
+        ExpressionAttributeValues = {':var':download_list},
+        )
+
     return response(200, data)
     
 def decrypt_data_key(data_key_encrypted):

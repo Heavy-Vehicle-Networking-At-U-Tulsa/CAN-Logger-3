@@ -104,16 +104,15 @@ def auth(event, context):
     timestamp = get_timestamp(time.time())
     access_tuple = (timestamp, email, ip_address)
     print("Access Tuple: {}".format(access_tuple))
-    # access_list = item['access_list']
-    # access_list.append(access_tuple)
+    download_list = item["download_log"]
+    download_list.append(access_tuple)
 
-    # #update the database with the user access details.
-    # table.update_item(
-    #         Key = {'digest': body['digest'],},
-    #         AttributeUpdates = {
-    #             'access_list': access_list,
-    #         },
-    #     )
+    #update the download log with the user details.
+    table.update_item(
+        Key = {'digest':body['digest']},
+        UpdateExpression = 'SET download_log= :var',
+        ExpressionAttributeValues = {':var':download_list},
+        )
 
     #return the base64 encoded AES key for that session.
     return response(200, base64.b64encode(clear_key).decode('ascii'))

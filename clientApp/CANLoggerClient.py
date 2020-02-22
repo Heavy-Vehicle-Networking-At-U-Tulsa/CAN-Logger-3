@@ -162,7 +162,7 @@ class CANLogger(QMainWindow):
 
         get_key = QAction(QIcon(r'icons/get_key.png'), 'Get &Key/Decrypt File', self)
         get_key.setShortcut('Ctrl+K')
-        get_key.setStatusTip('Decrypt a session key and decrypt log file.')
+        get_key.setStatusTip('Get the plaintext session key and decrypt log file.')
         get_key.triggered.connect(self.get_session_key)
         logger_menu.addAction(get_key)
         logger_toolbar.addAction(get_key)
@@ -236,7 +236,7 @@ class CANLogger(QMainWindow):
         self.connection_type      = None
 
 
-        initial_message = QLabel("Connect to a CAN Logger to see files (Ctrl+O).")
+        initial_message = QLabel("Connect to a CAN Logger (Ctrl+L) or to AWS server (Ctrl+S) to see files.")
         self.grid_layout = QGridLayout()
         self.grid_layout.addWidget(initial_message,0,0,1,1)
         main_widget = QWidget()
@@ -1053,7 +1053,8 @@ class CANLogger(QMainWindow):
                         "Binary File SHA-256 Hash Digest",
                         "Text File SHA-256 Hash Digest",
                         "Digital Signature of Text SHA Digest",
-                        "User Note"]
+                        "User Note",
+                        "Download Log"]
 
         NUM_COLS = len(header_labels)
         NUM_ROWS = len(self.server_data['Items'])
@@ -1083,6 +1084,7 @@ class CANLogger(QMainWindow):
             self.server_file_table.setItem(row,13,QTableWidgetItem(self.server_data['Items'][i]['text_sha_digest']))
             self.server_file_table.setItem(row,14,QTableWidgetItem(self.server_data['Items'][i]['signature']))
             self.server_file_table.setItem(row,15,QTableWidgetItem(str(self.server_data['Items'][i]['meta_data'])))
+            self.server_file_table.setItem(row,16,QTableWidgetItem(str(self.server_data['Items'][i]['download_log'])))
 
             row +=1
 
@@ -1103,6 +1105,7 @@ class CANLogger(QMainWindow):
 
         self.user_note = json.loads(self.server_file_table.item(row,15).text().replace("\'","\""))
         self.access_list = self.server_file_table.item(row,8).text()[1:-1]
+        self.download_list = self.server_file_table.item(row,16).text()[1:-1]
 
     def download_server_file(self):
         if self.connection_type != 'Server':
@@ -1285,9 +1288,9 @@ class CANLogger(QMainWindow):
             QMessageBox.warning(self,"Invalid Token",message)
             return
 
-        QMessageBox.information(self,"File Information","Name: {}\nCompany: {}\nMake: {}\nModel: {}\nYear: {}\nNote: {}\nShare Access: {}".format(
+        QMessageBox.information(self,"File Information","Name: {}\nCompany: {}\nMake: {}\nModel: {}\nYear: {}\nNote: {}\n\nShare Access: {}\n\nDownload Log: {}".format(
                                     self.user_note['Name'],self.user_note['Company'],self.user_note['Make'],self.user_note['Model'],
-                                    self.user_note['Year'],self.user_note['Note'],self.access_list))
+                                    self.user_note['Year'],self.user_note['Note'],self.access_list,self.download_list))
 
 
 
