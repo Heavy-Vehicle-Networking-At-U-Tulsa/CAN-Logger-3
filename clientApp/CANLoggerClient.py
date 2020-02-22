@@ -1140,7 +1140,7 @@ class CANLogger(QMainWindow):
                 output_name = self.server_meta_data_dict["filename"][:-4]
 
             #If choose plaintext
-            else:
+            elif msg.clickedButton() == button2:
                 iv = bytearray.fromhex(self.server_meta_data_dict["init_vect"])
                 cipher = Cipher(algorithms.AES(session_key),
                                     modes.CBC(iv),
@@ -1148,6 +1148,8 @@ class CANLogger(QMainWindow):
                 decryptor = cipher.decryptor()
                 output = decryptor.update(log_file) + decryptor.finalize()
                 output_name = self.server_meta_data_dict["filename"][:-4] +'_plaintext'
+            else:
+                return
 
             options = QFileDialog.Options()
             options |= QFileDialog.Detail
