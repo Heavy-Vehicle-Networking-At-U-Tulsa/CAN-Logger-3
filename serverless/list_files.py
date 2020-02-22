@@ -25,7 +25,7 @@ def list_files(event, context):
     table = dbClient.Table("CanLoggerMetaData")
     try:
         records = table.scan( 
-            FilterExpression = Attr('uploader').eq(email)
+            FilterExpression = Attr('uploader').eq(email) | Attr('access_list').contains(email)
         )
     except:
         return response(400, "Unable to retrieve table item.")

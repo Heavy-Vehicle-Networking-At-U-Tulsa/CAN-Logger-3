@@ -45,6 +45,10 @@ def share(event, context):
     except:
         return response(400, "File digest not found.")
 
+    #Check if email is the uploader
+    if not email == item['uploader']:
+        return response(400, "You do not have permission to share or revoke access to the selected file.")
+
     access_list = item['access_list']
 
     if body['option'] == 'Share':

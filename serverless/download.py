@@ -86,7 +86,7 @@ def download(event, context):
         return response(400, "File Meta data not availalble. Please upload file.\n{}".format(repr(e)))
 
     #Check if email is the uploader
-    if not email == item['uploader']:
+    if not email == item['uploader'] and not email in item['access_list']:
         return response(400, "You do not permission to download this file.")
 
     session_key = bytearray.fromhex(item["session_key"])

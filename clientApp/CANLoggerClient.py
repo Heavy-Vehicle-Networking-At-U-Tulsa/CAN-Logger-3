@@ -1196,26 +1196,31 @@ class CANLogger(QMainWindow):
 
         if msg.clickedButton() == button1:
             body_dict["option"] = 'Share'
-        else:
+            button_status = True
+        elif msg.clickedButton() == button2:
             body_dict["option"] = 'Revoke'
+            button_status = True
+        else:
+            button_status = False
 
-        formGroupBox = QGroupBox("User Input")
-        layout = QFormLayout()
-        self.email_access = QLineEdit()
-        layout.addRow(QLabel('Email:'),self.email_access)
+        if button_status:
+            formGroupBox = QGroupBox("User Input")
+            layout = QFormLayout()
+            self.email_access = QLineEdit()
+            layout.addRow(QLabel('Email:'),self.email_access)
 
-        formGroupBox.setLayout(layout)
-        buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttonBox.accepted.connect(self.get_email)
-        buttonBox.rejected.connect(self.reject)
+            formGroupBox.setLayout(layout)
+            buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            buttonBox.accepted.connect(self.get_email)
+            buttonBox.rejected.connect(self.reject)
 
-        self.window = QDialog()
-        mainLayout = QVBoxLayout(self.window)
-        mainLayout.addWidget(formGroupBox)
-        mainLayout.addWidget(buttonBox)
-        self.window.setLayout(mainLayout)
-        self.window.setWindowTitle("Share Access")
-        self.window.exec()
+            self.window = QDialog()
+            mainLayout = QVBoxLayout(self.window)
+            mainLayout.addWidget(formGroupBox)
+            mainLayout.addWidget(buttonBox)
+            self.window.setLayout(mainLayout)
+            self.window.setWindowTitle("Share Access")
+            self.window.exec()
 
         if self.status:
             body_dict["email_access"] = self.email_input
