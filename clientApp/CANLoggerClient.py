@@ -198,6 +198,13 @@ class CANLogger(QMainWindow):
         server_menu.addAction(share)
         server_toolbar.addAction(share)
 
+        read_info = QAction(QIcon(r'icons/read_icon.png'), '&Read File Info', self)
+        read_info.setShortcut('Ctrl+R')
+        read_info.setStatusTip('Read user note and download log from selected file.')
+        read_info.triggered.connect(self.read_file_info)
+        server_menu.addAction(read_info)
+        server_toolbar.addAction(read_info)
+
         #####################
         # UTILITY
         #####################
@@ -504,6 +511,8 @@ class CANLogger(QMainWindow):
             	QMessageBox.information(self,"Format SD Card", "SD card is successfully formatted!")
             else:
             	QMessageBox.warning(self,"Format SD Card", "Fail to format SD card!")
+        else:
+            return
             
 
     def decrypt_file(self):
@@ -1052,7 +1061,7 @@ class CANLogger(QMainWindow):
         self.server_file_table = QTableWidget(NUM_ROWS,NUM_COLS,self)
         self.server_file_table.setHorizontalHeaderLabels(header_labels)
         self.server_file_table.setSelectionBehavior(QTableView.SelectRows);
-        self.server_file_table.doubleClicked.connect(self.download_server_file)
+        self.server_file_table.doubleClicked.connect(self.read_file_info)
         self.server_file_table.itemSelectionChanged.connect(self.load_server_meta_data)
         self.server_file_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.grid_layout.addWidget(self.server_file_table ,0,0,1,1)
@@ -1088,8 +1097,12 @@ class CANLogger(QMainWindow):
         self.server_meta_data_dict["serial_num"] = self.server_file_table.item(row,9).text()
         self.server_meta_data_dict["filename"] = self.server_file_table.item(row,2).text()
         self.server_meta_data_dict["init_vect"] = self.server_file_table.item(row,10).text()
+        
         for k,v in self.server_meta_data_dict.items():
             logger.debug("{}: {}".format(k,v))
+
+        self.user_note = json.loads(self.server_file_table.item(row,15).text().replace("\'","\""))
+        self.access_list = self.server_file_table.item(row,8).text()[1:-1]
 
     def download_server_file(self):
         if self.connection_type != 'Server':
@@ -1256,6 +1269,27 @@ class CANLogger(QMainWindow):
             return
         self.status = True
         self.window.accept()
+
+    def read_file_info(self):
+        if self.connection_type != 'Server':
+            QMessageBox.warning(self,"Connection Type","Please connect to server and select a file.")
+            return
+
+        if self.server_meta_data_dict is None:
+            QMessageBox.warning(self,"Select File","Please connect to server and select a file.")
+            return
+
+        if not decode_jwt(self.identity_token):
+            message = "A valid webtoken is not available to download. Please login."
+            logger.warning(message)
+            QMessageBox.warning(self,"Invalid Token",message)
+            return
+
+        QMessageBox.information(self,"File Information","Name: {}\nCompany: {}\nMake: {}\nModel: {}\nYear: {}\nNote: {}\nShare Access: {}".format(
+                                    self.user_note['Name'],self.user_note['Company'],self.user_note['Make'],self.user_note['Model'],
+                                    self.user_note['Year'],self.user_note['Note'],self.access_list))
+
+
 
 if __name__.endswith('__main__'):
     app = QApplication(sys.argv)
