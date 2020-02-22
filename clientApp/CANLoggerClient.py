@@ -1236,7 +1236,7 @@ class CANLogger(QMainWindow):
                 QMessageBox.information(self,"Success",r.text)
             else: #Something went wrong
                 logger.debug(r.text)
-                QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
+                QMessageBox.warning(self,"Error",(r.text))
 
             #Refresh server file table
             self.list_server_file()

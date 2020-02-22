@@ -60,5 +60,9 @@ def share(event, context):
         Key = {'digest':body['digest']},
         UpdateExpression = 'SET access_list= :var',
         ExpressionAttributeValues = {':var':access_list},)
-    
-    return response(200, "{} has been added to access list.".format(body['email_access']))
+
+    #response
+    if body['option'] == 'Share':
+        return response(200, "{} has been added to access list.".format(body['email_access']))
+    else:
+        return response(200, "{} has been revoked from access list.".format(body['email_access']))
