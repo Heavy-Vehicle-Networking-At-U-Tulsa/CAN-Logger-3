@@ -220,7 +220,7 @@ class CANLogger(QMainWindow):
         provision_logger.setStatusTip('Register important data with the server.')
         provision_logger.triggered.connect(self.provision)
         util_menu.addAction(provision_logger)
-        util_toolbar.addAction(provision_logger)
+        #util_toolbar.addAction(provision_logger)
 
 
         self.setWindowTitle("CAN Logger Client Application")
@@ -248,89 +248,92 @@ class CANLogger(QMainWindow):
             self.login()
     
     def provision(self):
-        url = API_ENDPOINT + "provision"
-        header = {}
-        header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
-        header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
+        buttonReply = QMessageBox.question(self,"Provision Process","Are you performing provisioning and does your device has the provisioning firmware?",QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if buttonReply == QMessageBox.Yes:
+            url = API_ENDPOINT + "provision"
+            header = {}
+            header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
+            header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
 
-        while not self.connected:
-            if self.connect_logger_by_usb() is None:
-                return
-        # empty the queue
-        while not self.serial_queue.empty():
-            self.serial_queue.get_nowait()
-        time.sleep(0.5)
-        self.ser.write(b'KEY\n')
-        time.sleep(0.5)
-        
-        ret_val = b''
-        while not self.serial_queue.empty():
-            character = self.serial_queue.get()
-            ret_val += character
-        
-        response=ret_val.split(b'\n')
-        logger.debug(response)
-
-        serial_number = response[0]
-        device_public_key = response[1]
-
-        
-        try:
-            data = {'serial_number': base64.b64encode(serial_number).decode("ascii"),
-                    'device_public_key': base64.b64encode(device_public_key).decode("ascii"),
-                   }
-        except TypeError:
-            logger.warning("Must have data to get key.")
-            return
-
-        try:
-            r = requests.post(url, json=data, headers=header)
-        except requests.exceptions.ConnectionError:
-            QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
-            return
-        print(r.status_code)
-        print(r.text)
-        if r.status_code == 200: #This is normal return value
-            data_dict = r.json()
-            server_public_key=base64.b64decode(data_dict["server_public_key"]).hex().upper()
-            server_pem_key_pass=base64.b64decode(data_dict["server_pem_key_pass"]).decode('ascii')
-            encrypted_rand_pass=data_dict["encrypted_rand_pass"] #base64 format in string type
-            self.server_pem = server_pem_key_pass
-            self.rand_pass = encrypted_rand_pass
-            self.serial_id = serial_number.decode('ascii')
-
-
-            assert len(server_public_key)==128
-            print("uint8_t server_public_key[64] = {")
-            for i in range(0,len(server_public_key),2):
-                print("0x{}{},".format(server_public_key[i],server_public_key[i+1]),end='')
-            print("};")
-
-            # Visual key hash confirmation before sending the server public key to the device
-            device_pub_key_bytes = bytearray.fromhex(device_public_key.decode("ascii"))
-            server_public_key_bytes = base64.b64decode(data_dict["server_public_key"])   
-            device_public_key_hash = hashlib.sha256(device_pub_key_bytes).digest().hex().upper()
-            server_public_key_hash = hashlib.sha256(server_public_key_bytes).digest().hex().upper()
+            while not self.connected:
+                if self.connect_logger_by_usb() is None:
+                    return
+            # empty the queue
+            while not self.serial_queue.empty():
+                self.serial_queue.get_nowait()
+            time.sleep(0.5)
+            self.ser.write(b'KEY\n')
+            time.sleep(0.5)
             
-            #Key Comparision 
-            buttonReply = QMessageBox.question(self, 'Do the keys match?', "Device Serial Number: {}\nDevice public key provisioning hash: {}\nServer public key provisioning hash: {}".format(serial_number.decode('ascii'),device_public_key_hash[:10],server_public_key_hash[:10]), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-            if buttonReply == QMessageBox.Yes:
-                self.ser.write(bytearray.fromhex(server_public_key))
-                time.sleep(1)
-                ret_val = b''
-                while not self.serial_queue.empty():
-                    character = self.serial_queue.get()
-                    ret_val += character
-                if ret_val == bytes(server_public_key,'ascii'):
-                    QMessageBox.information(self,"Provisioning Process","Server Public Key has been stored and locked in device {}".format(self.serial_id))
-                    
+            ret_val = b''
+            while not self.serial_queue.empty():
+                character = self.serial_queue.get()
+                ret_val += character
+            
+            response=ret_val.split(b'\n')
+            logger.debug(response)
+
+            serial_number = response[0]
+            device_public_key = response[1]
+
+            
+            try:
+                data = {'serial_number': base64.b64encode(serial_number).decode("ascii"),
+                        'device_public_key': base64.b64encode(device_public_key).decode("ascii"),
+                       }
+            except TypeError:
+                logger.warning("Must have data to get key.")
+                return
+
+            try:
+                r = requests.post(url, json=data, headers=header)
+            except requests.exceptions.ConnectionError:
+                QMessageBox.warning(self,"Connection Error","The there was a connection error when connecting to\n{}\nPlease try again once connection is established".format(url))
+                return
+            print(r.status_code)
+            print(r.text)
+            if r.status_code == 200: #This is normal return value
+                data_dict = r.json()
+                server_public_key=base64.b64decode(data_dict["server_public_key"]).hex().upper()
+                server_pem_key_pass=base64.b64decode(data_dict["server_pem_key_pass"]).decode('ascii')
+                encrypted_rand_pass=data_dict["encrypted_rand_pass"] #base64 format in string type
+                self.server_pem = server_pem_key_pass
+                self.rand_pass = encrypted_rand_pass
+                self.serial_id = serial_number.decode('ascii')
+
+
+                assert len(server_public_key)==128
+                print("uint8_t server_public_key[64] = {")
+                for i in range(0,len(server_public_key),2):
+                    print("0x{}{},".format(server_public_key[i],server_public_key[i+1]),end='')
+                print("};")
+
+                # Visual key hash confirmation before sending the server public key to the device
+                device_pub_key_bytes = bytearray.fromhex(device_public_key.decode("ascii"))
+                server_public_key_bytes = base64.b64decode(data_dict["server_public_key"])   
+                device_public_key_hash = hashlib.sha256(device_pub_key_bytes).digest().hex().upper()
+                server_public_key_hash = hashlib.sha256(server_public_key_bytes).digest().hex().upper()
+                
+                #Key Comparision 
+                buttonReply = QMessageBox.question(self, 'Do the keys match?', "Device Serial Number: {}\nDevice public key provisioning hash: {}\nServer public key provisioning hash: {}".format(serial_number.decode('ascii'),device_public_key_hash[:10],server_public_key_hash[:10]), QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                if buttonReply == QMessageBox.Yes:
+                    self.ser.write(bytearray.fromhex(server_public_key))
+                    time.sleep(1)
+                    ret_val = b''
+                    while not self.serial_queue.empty():
+                        character = self.serial_queue.get()
+                        ret_val += character
+                    if ret_val == bytes(server_public_key,'ascii'):
+                        QMessageBox.information(self,"Provisioning Process","Server Public Key has been stored and locked in device {}".format(self.serial_id))
+                        self.ask_to_save()
+                    else:
+                        QMessageBox.warning(self,"Error","Key is already locked!")
+
                 else:
-                    QMessageBox.warning(self,"Error","Key is already locked!")
-
+                    QMessageBox.warning(self,"Error","Keys do not match!")
+            
             else:
-                QMessageBox.warning(self,"Error","Keys do not match!")
-
-            self.ask_to_save() #Will be moved under Success
+                QMessageBox.warning(self,"Error",r.text)
 
     #Ask the operator if they want to save the server_pem_key and encrypted_rand_pass
     def ask_to_save(self):
@@ -1105,7 +1108,8 @@ class CANLogger(QMainWindow):
 
         self.user_note = json.loads(self.server_file_table.item(row,15).text().replace("\'","\""))
         self.access_list = self.server_file_table.item(row,8).text()[1:-1]
-        self.download_list = self.server_file_table.item(row,16).text()[1:-1]
+        self.download_list = self.server_file_table.item(row,16).text()[1:-1].replace("\"","")
+        self.uploader = self.server_file_table.item(row,7).text()
 
     def download_server_file(self):
         if self.connection_type != 'Server':
@@ -1165,6 +1169,7 @@ class CANLogger(QMainWindow):
                 output = decryptor.update(log_file) + decryptor.finalize()
                 output_name = self.server_meta_data_dict["filename"][:-4] +'_plaintext'
             else:
+                self.list_server_file()
                 return
 
             options = QFileDialog.Options()
@@ -1179,6 +1184,7 @@ class CANLogger(QMainWindow):
                     file.write(output)
                     file.close()
 
+            self.list_server_file()
 
         else: #Something went wrong
             logger.debug(r.text)
@@ -1288,9 +1294,10 @@ class CANLogger(QMainWindow):
             QMessageBox.warning(self,"Invalid Token",message)
             return
 
-        QMessageBox.information(self,"File Information","Name: {}\nCompany: {}\nMake: {}\nModel: {}\nYear: {}\nNote: {}\n\nShare Access: {}\n\nDownload Log: {}".format(
-                                    self.user_note['Name'],self.user_note['Company'],self.user_note['Make'],self.user_note['Model'],
-                                    self.user_note['Year'],self.user_note['Note'],self.access_list,self.download_list))
+        QMessageBox.information(self,"File Information","Uploader: {}\nShare Access: {}\n\nName: {}\nCompany: {}\nMake: {}\nModel: {}\nYear: {}\nNote: {}\n\nDownload Log: {}".format(
+                                    self.uploader,self.access_list,self.user_note['Name'],self.user_note['Company'],
+                                    self.user_note['Make'],self.user_note['Model'],
+                                    self.user_note['Year'],self.user_note['Note'],self.download_list))
 
 
 
