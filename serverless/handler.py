@@ -39,7 +39,7 @@ def upload(event, context):
 
     requester_data = event["requestContext"]
     if requester_data["authorizer"]["claims"]["email_verified"]:
-        email = requester_data["authorizer"]["claims"]["email"]
+        email = requester_data["authorizer"]["claims"]["email"].lower()
     else:
         return response(400, "Email not verified.")
 

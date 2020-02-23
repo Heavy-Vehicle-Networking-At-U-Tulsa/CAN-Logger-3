@@ -31,7 +31,7 @@ def share(event, context):
     #Determine the identity of the requester.
     requester_data = event["requestContext"]
     if requester_data["authorizer"]["claims"]["email_verified"]:
-        email = requester_data["authorizer"]["claims"]["email"]
+        email = requester_data["authorizer"]["claims"]["email"].lower()
     else:
         return response(400, "Email not verified.")
 
@@ -50,15 +50,15 @@ def share(event, context):
         return response(400, "You do not have permission to share or revoke access to the selected file.")
 
     access_list = item['access_list']
-
+    input_email = body['email_access'].lower()
     if body['option'] == 'Share':
-        access_list.append(body['email_access'])
+        access_list.append(input_email)
     else:
-        if body['email_access'] in access_list:
-            index = access_list.index(body['email_access'])
+        if input_email in access_list:
+            index = access_list.index(input_email)
             access_list.pop(index)
         else:
-            return response(400,"There is no {} in access list to revoke access.".format(body['email_access']))
+            return response(400,"There is no {} in access list to revoke access.".format(input_email))
 
     table.update_item(
         Key = {'digest':body['digest']},
@@ -67,6 +67,6 @@ def share(event, context):
 
     #response
     if body['option'] == 'Share':
-        return response(200, "{} has been added to access list.".format(body['email_access']))
+        return response(200, "{} has been added to access list.".format(input_email))
     else:
-        return response(200, "{} has been revoked from access list.".format(body['email_access']))
+        return response(200, "{} has been revoked from access list.".format(input_email))

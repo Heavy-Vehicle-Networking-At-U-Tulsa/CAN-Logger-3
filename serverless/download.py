@@ -38,7 +38,7 @@ def download(event, context):
     if requester_data["authorizer"]["claims"]["email_verified"]:
     	identity_data = event["requestContext"]["identity"]
     	ip_address = identity_data["sourceIp"]
-    	email = requester_data["authorizer"]["claims"]["email"]
+    	email = requester_data["authorizer"]["claims"]["email"].lower()
     else:
     	return response(400, "Email not verified.")
 
@@ -113,7 +113,7 @@ def download(event, context):
 
     # set attribution data
     timestamp = get_timestamp(time.time())
-    access_tuple = (timestamp, email, ip_address)
+    access_tuple = str((timestamp, email, ip_address))
     print("Access Tuple: {}".format(access_tuple))
     download_list = item["download_log"]
     download_list.append(access_tuple)

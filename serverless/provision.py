@@ -46,7 +46,7 @@ def provision(event,context):
         identity_data = event["requestContext"]["identity"]
         print(identity_data)
         ip_address = identity_data["sourceIp"]
-        email = requester_data["authorizer"]["claims"]["email"]
+        email = requester_data["authorizer"]["claims"]["email"].lower()
     else:
         return response(400, "Email not verified.")
     
