@@ -5,3 +5,4 @@ clientApp/username.txt
 clientApp/password.txt
 *.pyc
 
+*.bin
