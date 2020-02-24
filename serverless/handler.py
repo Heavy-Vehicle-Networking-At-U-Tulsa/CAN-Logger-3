@@ -85,6 +85,9 @@ def upload(event, context):
 
     if not verify_meta_data_text(meta_data_bytes):
         return response(400, "Metadata failed to verify.")
+
+    if meta_data_dict["session_key"] == '00000000000000000000000000000000':
+        return respones(400, "File is rejected due to invalid encrypted session key")
     
     #Send response 
     table = dbClient.Table("CanLoggerMetaData")
