@@ -119,7 +119,7 @@ class CANLogger(QMainWindow):
         #####################
         # USER
         #####################
-        user_menu = menubar.addMenu('&User')
+        user_menu = menubar.addMenu('&Client')
         logger_menu = menubar.addMenu('&Logger')
         server_menu = menubar.addMenu('&Server')
         util_menu = menubar.addMenu('&Utility')

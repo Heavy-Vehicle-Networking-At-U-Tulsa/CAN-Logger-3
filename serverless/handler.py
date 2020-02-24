@@ -57,7 +57,7 @@ def upload(event, context):
     meta_data_dict["digest"] = meta_data[9].split(":")[1] #string of hex characters as bytes
     meta_data_dict["text_sha_digest"] = meta_data[10].split(":")[1] #string of characters as bytes
     meta_data_dict["signature"] = meta_data[11].split(":")[1] #string of characters as bytes
-    meta_data_dict["access_list"] = [] #List of email addresses who have view and download access to the file 
+    meta_data_dict["access_list"] = ['jeremy.daily@colostate.edu'] #List of email addresses who have view and download access to the file 
     meta_data_dict["upload_date"] = ' ' # to be filled in after verification of file in S3
     meta_data_dict["uploader"] = email # Attribute who uploaded the file
     meta_data_dict["meta_data"] = user_input_data # User added data
