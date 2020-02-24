@@ -330,7 +330,7 @@ class CANLogger(QMainWindow):
                         QMessageBox.warning(self,"Error","Key is already locked!")
 
                 else:
-                    QMessageBox.warning(self,"Error","Keys do not match!")
+                    QMessageBox.warning(self,"Keys do not match","Server public key has NOT been stored and locked!\nDelete the device info in CANLoggers table and provision again.")
             
             else:
                 QMessageBox.warning(self,"Error",r.text)
