@@ -252,6 +252,7 @@ class CANLogger(QMainWindow):
         main_widget = QWidget()
         main_widget.setLayout(self.grid_layout)
         self.setCentralWidget(main_widget)
+        self.setWindowIcon(QIcon(r'icons/csu_icon.png'))
 
         self.show() 
         if not self.load_tokens():
