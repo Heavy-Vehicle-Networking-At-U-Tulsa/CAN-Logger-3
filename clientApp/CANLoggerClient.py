@@ -54,7 +54,7 @@ import random
 import os
 import traceback
 import logging
-import os
+import csv
 
 sys.path.insert(1, '../serverless')
 from utils import verify_meta_data_text, decode_jwt
@@ -119,10 +119,10 @@ class CANLogger(QMainWindow):
         #####################
         # USER
         #####################
-        user_menu = menubar.addMenu('&Client')
+        user_menu = menubar.addMenu('&User')
         logger_menu = menubar.addMenu('&Logger')
         server_menu = menubar.addMenu('&Server')
-        util_menu = menubar.addMenu('&Utility')
+        util_menu = menubar.addMenu('U&tility')
 
         user_toolbar = self.addToolBar("User")
         logger_toolbar = self.addToolBar("Logger")
@@ -222,6 +222,13 @@ class CANLogger(QMainWindow):
         util_menu.addAction(provision_logger)
         #util_toolbar.addAction(provision_logger)
 
+        default_access = QAction(QIcon(r'icons/list_icon.png'), '&Save Default Access List', self)
+        default_access.setShortcut('Ctrl+E')
+        default_access.setStatusTip('Create a default access list from input emails for file upload.')
+        default_access.triggered.connect(self.save_default_access)
+        util_menu.addAction(default_access)
+        util_toolbar.addAction(default_access)
+
 
         self.setWindowTitle("CAN Logger Client Application")
         
@@ -234,6 +241,9 @@ class CANLogger(QMainWindow):
         self.encrypted_log_file   = None
         self.session_key          = None
         self.connection_type      = None
+
+        self.character1 = ' '
+        self.character2 = ','
 
 
         initial_message = QLabel("Connect to a CAN Logger (Ctrl+L) or to AWS server (Ctrl+S) to see files.")
@@ -897,13 +907,14 @@ class CANLogger(QMainWindow):
         header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
         header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
         logger.debug("Using the following header:\n{}".format(header))
+        self.body_dict ={}
         self.upload_user_input()
         if self.cont == False:
             return
-        self.body_dict ={}
         self.body_dict['device_data']=self.meta_data_dict["base64"]
         self.body_dict['user_input_data']=self.user_input_dict
-
+        print(self.body_dict)
+        
         try:
             r = requests.post(url, json=self.body_dict, headers=header)
         except requests.exceptions.ConnectionError:
@@ -929,6 +940,7 @@ class CANLogger(QMainWindow):
             logger.debug(r.text)
             QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
             return
+		
 
     def verify_upload(self):
     	'''
@@ -963,6 +975,10 @@ class CANLogger(QMainWindow):
         self.model = QLineEdit()
         self.year = QComboBox()
         self.note = QPlainTextEdit()
+        self.access = QComboBox()
+
+        self.access.addItem("No")
+        self.access.addItem("Yes")
 
         make_list = [' ','Kenworth','Peterbilt','Freightliner','Volvo','Mack','International','Other']
         for i in make_list:
@@ -980,6 +996,7 @@ class CANLogger(QMainWindow):
         layout.addRow(QLabel('Model:'),self.model)
         layout.addRow(QLabel('Year:'),self.year)
         layout.addRow(QLabel('Note:'),self.note)
+        layout.addRow(QLabel('Default Access:'),self.access)
 
         formGroupBox.setLayout(layout)
         buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -996,19 +1013,49 @@ class CANLogger(QMainWindow):
 
 
     def get_data(self):
-        self.user_input_dict = {}
-        self.user_input_dict['Name'] = self.name.text()
-        self.user_input_dict['Company'] =self.company.text()
-        self.user_input_dict['Make'] =self.make.currentText()
-        self.user_input_dict['Model'] =self.model.text()
-        self.user_input_dict['Year'] =self.year.currentText()
-        self.user_input_dict['Note'] =self.note.toPlainText()
+    	if self.access.currentText() =='Yes':
+    		options = QFileDialog.Options()
+    		options |= QFileDialog.Detail
+    		self.data_file_name, data_file_type = QFileDialog.getOpenFileName(self,
+                                            "Open CSV File",
+                                            self.home_directory,
+                                            "CSV Files (*.csv);;All Files (*)",
+                                            options = options)
+    		if self.data_file_name:
+    			with open(self.data_file_name,'r') as file:
+    				data = csv.reader(file)
+    				temp_list = []
+    				for i in data:
+    					temp_list.append(i)
+    				self.body_dict['access_list'] = temp_list[0]
 
-        for i in self.user_input_dict:
-            if self.user_input_dict[i] =="":
-                self.user_input_dict[i] = " "
-        self.cont = True #User has clicked OK and now proceed to complete upload_file() 
-        self.window.accept()
+    				#check value in accless_list
+    				if self.body_dict['access_list'] ==[]:
+    					QMessageBox.warning(self,"Error","Invalid share access list format! Please check your file and try again. ")
+    					return
+    				for j in self.body_dict['access_list']:
+    					if self.character1 in j or self.character2 in j or j =='':
+    						QMessageBox.warning(self,"Error","Invalid share access list format! Please try again. ")
+    						return
+    		else:
+    			return
+    	else:
+    		self.body_dict['access_list'] = None
+
+
+    	self.user_input_dict = {}
+    	self.user_input_dict['Name'] = self.name.text()
+    	self.user_input_dict['Company'] =self.company.text()
+    	self.user_input_dict['Make'] =self.make.currentText()
+    	self.user_input_dict['Model'] =self.model.text()
+    	self.user_input_dict['Year'] =self.year.currentText()
+    	self.user_input_dict['Note'] =self.note.toPlainText()
+
+    	for i in self.user_input_dict:
+    		if self.user_input_dict[i] =="":
+    			self.user_input_dict[i] = " "
+    	self.cont = True #User has clicked OK and now proceed to complete upload_file() 
+    	self.window.accept()
 
     def reject(self):  
         self.window.reject()
@@ -1276,6 +1323,12 @@ class CANLogger(QMainWindow):
         if self.email_input =="":
             QMessageBox.warning(self,"Input Error","Cannot leave the input blank")
             return
+        elif (self.character1 in self.email_input):
+            QMessageBox.warning(self,"Input Error","Cannot have a space in the input")
+            return
+        elif (self.character2 in self.email_input):
+            QMessageBox.warning(self,"Input Error","Cannot have a ',' in the input")
+            return
         self.status = True
         self.window.accept()
 
@@ -1299,6 +1352,67 @@ class CANLogger(QMainWindow):
                                     self.user_note['Make'],self.user_note['Model'],
                                     self.user_note['Year'],self.user_note['Note'],self.download_list))
 
+    def save_default_access(self):
+        QMessageBox.information(self,"Create Default Share Access List","Please input the emails for default access list, with one email for each line. ")
+        formGroupBox = QGroupBox("User Input")
+        layout = QFormLayout()
+        self.access_input = QPlainTextEdit()
+        layout.addRow(QLabel('Email List:'),self.access_input)
+
+        formGroupBox.setLayout(layout)
+        buttonBox = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttonBox.accepted.connect(self.get_email_list)
+        buttonBox.rejected.connect(self.reject)
+
+        self.window = QDialog()
+        mainLayout = QVBoxLayout(self.window)
+        mainLayout.addWidget(formGroupBox)
+        mainLayout.addWidget(buttonBox)
+        self.window.setLayout(mainLayout)
+        self.window.setWindowTitle("Create Default Share Access List")
+        self.window.exec()
+
+        return
+
+    def get_email_list(self):
+    	self.default_email_list = self.access_input.toPlainText().split("\n")
+    	if self.default_email_list[len(self.default_email_list)-1] =='':
+    		self.default_email_list.pop(len(self.default_email_list)-1)
+    		if self.default_email_list ==[]:
+    			QMessageBox.warning(self,"Input Error","Cannot have a blank input")
+    			return
+
+    	#Check user input for incorrect format
+    	for i in self.default_email_list:
+    		if self.character2 in i:
+    			QMessageBox.warning(self,"Input Error","Cannot have a ',' in the input")
+    			return
+    		elif self.character1 in i:
+    			QMessageBox.warning(self,"Input Error","Cannot have a space in the input")
+    			return
+    		elif i =='':
+    			QMessageBox.warning(self,"Input Error","Cannot have a blank line")
+    			return
+    	try: 
+    		options = QFileDialog.Options()
+    		options |= QFileDialog.Detail
+    		self.data_file_name, data_file_type = QFileDialog.getSaveFileName(self,
+	                                                "Save File",
+	                                                self.home_directory + "/" + "default_access_list",
+	                                                "CSV Files (*.csv);;All Files (*)",
+	                                                options = options)
+    		if self.data_file_name:
+    			with open(self.data_file_name, 'w') as file:
+    				wr = csv.writer(file,dialect='excel')
+    				wr.writerow(self.default_email_list)
+
+    	except PermissionError:
+	    	QMessageBox.warning(self,"Writing Error","Cannot write to file! Please make sure the file is closed.")
+	    	return
+
+    	
+
+    	self.window.accept()
 
 
 if __name__.endswith('__main__'):
