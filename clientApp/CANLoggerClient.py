@@ -913,7 +913,6 @@ class CANLogger(QMainWindow):
             return
         self.body_dict['device_data']=self.meta_data_dict["base64"]
         self.body_dict['user_input_data']=self.user_input_dict
-        print(self.body_dict)
         
         try:
             r = requests.post(url, json=self.body_dict, headers=header)

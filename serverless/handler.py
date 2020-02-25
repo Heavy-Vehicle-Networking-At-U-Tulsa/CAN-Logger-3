@@ -27,7 +27,7 @@ def upload(event, context):
     body = json.loads(event['body'])
     meta_data_bytes = base64.b64decode(body['device_data'])
     user_input_data = body['user_input_data']
-    data_size = sys.getsizeof(user_input_data) 
+    access_list = body['access_list'] 
     '''
     try:
         assert isInstance(user_input_data, dict) #make it a dict
@@ -89,7 +89,12 @@ def upload(event, context):
     if meta_data_dict["session_key"] == '00000000000000000000000000000000':
         return respones(400, "File is rejected due to invalid encrypted session key")
     
-    #Send response 
+    #Update access_list if the email list has data
+    if access_list != None:
+        for email in access_list:
+            meta_data_dict["access_list"].append(email)
+
+    #Populate the table
     table = dbClient.Table("CanLoggerMetaData")
     try:
         table.put_item(
@@ -99,6 +104,7 @@ def upload(event, context):
     except Exception as e:
         return response(400, "Hash Digest already exists or data is missing. " + repr(e))
     
+    #Send response with url to upload log file
     client = boto3.client('s3', region_name='us-east-2')
     signedURL = client.generate_presigned_post(Bucket='can-log-files',
                                                Key=meta_data_dict["digest"]
