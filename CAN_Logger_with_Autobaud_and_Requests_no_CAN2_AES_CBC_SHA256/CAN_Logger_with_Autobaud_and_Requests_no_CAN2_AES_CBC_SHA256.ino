@@ -1410,7 +1410,7 @@ void turn_requests_off(){
 }
 
 void turn_recording_on(){
-  recording = true;
+  setup();
   Serial.println("Recording On");
 }
 
