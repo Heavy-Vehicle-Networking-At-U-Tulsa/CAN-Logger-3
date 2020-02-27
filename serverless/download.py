@@ -85,7 +85,7 @@ def download(event, context):
     except Exception as e:
         return response(400, "File Meta data not availalble. Please upload file.\n{}".format(repr(e)))
 
-    #Check if email is the uploader
+    #Check if email is the uploader or has share access
     if not email == item['uploader'] and not email in item['access_list']:
         return response(400, "You do not permission to download this file.")
 
