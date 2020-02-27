@@ -601,19 +601,31 @@ class CANLogger(QMainWindow):
         time.sleep(0.020)
         ret_val = b''
         start_time = time.time()
-        timeout = 20
+        timeout = 1000
+
+        #Add progress bar
+        loading_progress = QProgressDialog(self)
+        loading_progress.setMinimumWidth(300)
+        loading_progress.setWindowTitle("Loading and Converting Binary")
+        loading_progress.setMinimumDuration(0)
+        loading_progress.setMaximum(expected_size)
+        loading_progress.setWindowModality(Qt.ApplicationModal)
+
         try:
             while len(ret_val) < expected_size:
                 try:
                     character = self.serial_queue.get()
                     ret_val += character
+                    loading_progress.setValue(len(ret_val))
+                    if loading_progress.wasCanceled():
+                        break
                     #print(character)
                 except:
-                    traceback.format_exc()
-                current_time = (time.time() - start_time)
-                if  current_time > timeout:
-                    logger.debug("Download timed out.")
-                    break
+                    traceback.format_exc()   
+                #current_time = (time.time() - start_time)
+                #if  current_time > timeout:
+                #    logger.debug("Download timed out.")
+                #    break
         except: 
             logger.debug(traceback.format_exc())
         downloaded_size = len(ret_val)
