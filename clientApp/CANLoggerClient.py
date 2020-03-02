@@ -484,11 +484,20 @@ class CANLogger(QMainWindow):
             msg.setTextInteractionFlags(Qt.TextSelectableByMouse)
             msg.exec_()
 
+            self.cont = True
             buttonReply = QMessageBox.question(self,"Log File","Do you want to save the decrypted version of selected file?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if buttonReply == QMessageBox.Yes:
-                self.download_file()
+                try:
+                    with open(self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'rb') as file:
+                        data = file.read()
+                except FileNotFoundError: #If file is not on local PC
+                    self.download_file()
+                if len(data) != self.meta_data_dict['filesize']: #If file size is not full size 
+                    self.download_file()
                 self.decrypt_file()
 
+                if self.cont == False:
+                    return
                 #Save decrypted file
                 options = QFileDialog.Options()
                 options |= QFileDialog.Detail
@@ -532,6 +541,10 @@ class CANLogger(QMainWindow):
     def decrypt_file(self):
         if self.session_key is None:
             logger.debug("Decryption Needs a Session Key")
+        if self.download_status == 2:
+            QMessageBox.information(self,"Decrypting File","Process has been canceled")
+            self.cont = False
+            return
         # Calculate SHA of data
         # compare SHA If SHA is the same, Proceed
         #logger.debug(self.meta_data_dict["init_vect"])
@@ -604,6 +617,7 @@ class CANLogger(QMainWindow):
         #start_time = time.time()
         #timeout = 1000
         count = 0
+        self.download_status = 0
         
         #Add progress bar
         loading_progress = QProgressDialog(self)
@@ -627,7 +641,9 @@ class CANLogger(QMainWindow):
                         if loading_progress.wasCanceled():
                             self.ser.write(b'OFF\n')
                             time.sleep(0.1)
+                            self.download_status += 1
                             break
+                            return
                     file.close()
                 except:
                     traceback.format_exc()   
@@ -655,6 +671,8 @@ class CANLogger(QMainWindow):
             logger.debug("SHA-256 digests match. Log File is authenticate.")
         else:
             logger.debug("Mismatch of SHA-256 digests. Log File is not authenticated.")
+            self.download_status += 1
+
 
         
     
@@ -940,6 +958,13 @@ class CANLogger(QMainWindow):
         self.upload_user_input()
         if self.cont == False:
             return
+        self.download_file()
+        if self.download_status == 1:
+            QMessageBox.warning(self,"Error","Downloaded log file Hash does not match")
+            return
+        elif self.download_status == 2:
+            QMessageBox.information(self,"File Upload","Process has been canceled")
+            return
         self.body_dict['device_data']=self.meta_data_dict["base64"]
         self.body_dict['user_input_data']=self.user_input_dict
         
@@ -952,7 +977,7 @@ class CANLogger(QMainWindow):
         if r.status_code == 200: #This is normal return value
             response_dict = r.json()
             logger.debug(response_dict['upload_link'])
-            self.download_file()
+            
 
             r1 = requests.post( response_dict['upload_link']['url'], 
                                 data=response_dict['upload_link']['fields'], 
