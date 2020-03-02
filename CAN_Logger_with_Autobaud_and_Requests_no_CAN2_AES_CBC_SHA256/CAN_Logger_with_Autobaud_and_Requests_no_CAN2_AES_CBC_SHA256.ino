@@ -481,8 +481,12 @@ void stream_binary(char stream_file_name[]){
     binFile.open(stream_file_name, O_READ);
     digitalWrite(YELLOW_LED,HIGH);
     while (binFile.read(line, BUFFER_SIZE) > 0) 
-    {
+    { 
       Serial.write(line,BUFFER_SIZE);
+      if (Serial.available() >= 2){
+      commandString = Serial.readStringUntil('\n');
+      if (commandString.equalsIgnoreCase("OFF")) break;
+      }
     }
     digitalWrite(YELLOW_LED,LOW);
     binFile.close();

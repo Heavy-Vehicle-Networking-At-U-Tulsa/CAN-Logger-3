@@ -597,37 +597,50 @@ class CANLogger(QMainWindow):
         # empty the queue
         while not self.serial_queue.empty():
             self.serial_queue.get_nowait()
+        time.sleep(0.5)
         self.ser.write(b'BIN ' + bytes(filename,'ascii') + b'\n')
-        time.sleep(0.020)
+        time.sleep(0.5)
         ret_val = b''
-        start_time = time.time()
-        timeout = 1000
-
+        #start_time = time.time()
+        #timeout = 1000
+        count = 0
+        
         #Add progress bar
         loading_progress = QProgressDialog(self)
         loading_progress.setMinimumWidth(300)
-        loading_progress.setWindowTitle("Loading and Converting Binary")
+        loading_progress.setWindowTitle("Transferring Log File to Computer")
+        loading_progress.setLabelText("This may take a while")
         loading_progress.setMinimumDuration(0)
         loading_progress.setMaximum(expected_size)
         loading_progress.setWindowModality(Qt.ApplicationModal)
-
+        if not os.path.exists('Log Files'):
+            os.makedirs('Log Files')
         try:
-            while len(ret_val) < expected_size:
+            with open (self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'wb') as file:
                 try:
-                    character = self.serial_queue.get()
-                    ret_val += character
-                    loading_progress.setValue(len(ret_val))
-                    if loading_progress.wasCanceled():
-                        break
-                    #print(character)
+                    while count < expected_size:
+                        character = self.serial_queue.get()
+                        file.write(character)
+                        count += len(character)
+                        #print(count)
+                        loading_progress.setValue(count)
+                        if loading_progress.wasCanceled():
+                            self.ser.write(b'OFF\n')
+                            time.sleep(0.1)
+                            break
+                    file.close()
                 except:
                     traceback.format_exc()   
                 #current_time = (time.time() - start_time)
                 #if  current_time > timeout:
                 #    logger.debug("Download timed out.")
                 #    break
+                    
         except: 
             logger.debug(traceback.format_exc())
+        with open(self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'rb') as file:
+            ret_val = file.read()
+
         downloaded_size = len(ret_val)
         logger.debug("Downloaded {} bytes of {}".format(downloaded_size,expected_size))
         self.encrypted_log_file = ret_val
@@ -668,6 +681,9 @@ class CANLogger(QMainWindow):
         while not self.connected:
             if self.connect_logger_by_usb() is None:
                 return
+        time.sleep(0.1)
+        self.ser.write(b'0\n')
+        time.sleep(0.1)
         # empty the queue
         while not self.serial_queue.empty():
             self.serial_queue.get_nowait()
