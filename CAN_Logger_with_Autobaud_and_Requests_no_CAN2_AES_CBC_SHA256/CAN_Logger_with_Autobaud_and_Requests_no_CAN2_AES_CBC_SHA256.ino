@@ -425,7 +425,7 @@ void check_buffer(){
       
     }
     buffer_counter++;
-    if (buffer_counter == 1750000) myDoubleClickFunction(); //When file size reaches 896,000,000 bytes, start a new one
+    if (buffer_counter == 1843200) myDoubleClickFunction(); //When file size reaches 900 MB, start a new one
     
 
     //Reset the record

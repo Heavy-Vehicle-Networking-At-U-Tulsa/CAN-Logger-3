@@ -623,7 +623,7 @@ class CANLogger(QMainWindow):
         loading_progress = QProgressDialog(self)
         loading_progress.setMinimumWidth(300)
         loading_progress.setWindowTitle("Transferring Log File to Computer")
-        loading_progress.setLabelText("This may take a while")
+        loading_progress.setLabelText("This may take a while...")
         loading_progress.setMinimumDuration(0)
         loading_progress.setMaximum(expected_size)
         loading_progress.setWindowModality(Qt.ApplicationModal)
@@ -755,7 +755,23 @@ class CANLogger(QMainWindow):
         self.device_file_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.grid_layout.addWidget(self.device_file_table ,0,0,1,1)
         row = 0
+
+        #Add progress bar
+        loading_progress = QProgressDialog(self)
+        loading_progress.setMinimumWidth(300)
+        loading_progress.setWindowTitle("Retrieving {} Log Files Metadata".format(len(file_meta_data_list)))
+        loading_progress.setLabelText("This may take a while...")
+        loading_progress.setMinimumDuration(0)
+        loading_progress.setMaximum(len(file_meta_data_list))
+        loading_progress.setWindowModality(Qt.ApplicationModal)
+        index = 0
+
         for line_data in file_meta_data_list:
+            index +=1
+            loading_progress.setValue(index)
+            if loading_progress.wasCanceled():
+            	break
+
             latest_file_name = str(line_data[3],'ascii')
             latest_file_size = int(line_data[2])
             # empty the queue
