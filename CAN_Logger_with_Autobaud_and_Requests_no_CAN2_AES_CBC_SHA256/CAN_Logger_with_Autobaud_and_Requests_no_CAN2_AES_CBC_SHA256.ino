@@ -182,6 +182,7 @@ uint8_t current_channel;
 #define BUFFER_SIZE 512
 uint8_t data_buffer[BUFFER_SIZE];
 uint16_t current_position;
+unsigned int buffer_counter;
 
 //Counter and timer to keep track of transmitted messages
 #define TX_MESSAGE_TIME 2 //milliseconds
@@ -421,7 +422,11 @@ void check_buffer(){
     else{
       first_buffer_sent = true;
       hash_counter = 0;
+      
     }
+    buffer_counter++;
+    if (buffer_counter == 1750000) myDoubleClickFunction(); //When file size reaches 896,000,000 bytes, start a new one
+    
 
     //Reset the record
     memset(&data_buffer,0xFF,BUFFER_SIZE);
@@ -643,7 +648,7 @@ void get_current_file(){
 }
 
 void open_binFile(){
-
+  buffer_counter = 1;
   first_buffer_sent = false;
   sha256Instance = new Sha256();
     
