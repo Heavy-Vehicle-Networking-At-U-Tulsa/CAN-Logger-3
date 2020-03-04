@@ -612,7 +612,7 @@ class CANLogger(QMainWindow):
             self.serial_queue.get_nowait()
         time.sleep(0.5)
         self.ser.write(b'BIN ' + bytes(filename,'ascii') + b'\n')
-        time.sleep(0.5)
+        time.sleep(1)
         ret_val = b''
         #start_time = time.time()
         #timeout = 1000
@@ -994,7 +994,6 @@ class CANLogger(QMainWindow):
             response_dict = r.json()
             logger.debug(response_dict['upload_link'])
             
-
             r1 = requests.post( response_dict['upload_link']['url'], 
                                 data=response_dict['upload_link']['fields'], 
                                 files={'file': self.encrypted_log_file}
@@ -1028,6 +1027,7 @@ class CANLogger(QMainWindow):
     	if r.status_code == 200: #This is normal return value
     		print(r.text)
     		QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nDigest: {}".format(self.meta_data_dict['file_uid']))
+    		self.statusBar().showMessage("Successfully uploaded binary file.")
     	else:
     		logger.debug(r.text)
     		QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
