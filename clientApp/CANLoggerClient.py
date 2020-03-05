@@ -1061,7 +1061,7 @@ class CANLogger(QMainWindow):
             self.make.addItem(str(i))
 
         today = datetime.datetime.today()
-        year_list = range(1995,today.year+1)
+        year_list = range(1995,today.year+2)
         self.year.addItem(' ')
         for i in reversed(year_list):
             self.year.addItem(str(i))
@@ -1403,7 +1403,7 @@ class CANLogger(QMainWindow):
             QMessageBox.warning(self,"Input Error","Cannot have a space in the input")
             return
         elif (self.character2 in self.email_input):
-            QMessageBox.warning(self,"Input Error","Cannot have a ',' in the input")
+            QMessageBox.warning(self,"Input Error","Cannot have a , in the input")
             return
         self.status = True
         self.window.accept()
@@ -1455,19 +1455,19 @@ class CANLogger(QMainWindow):
     	if self.default_email_list[len(self.default_email_list)-1] =='':
     		self.default_email_list.pop(len(self.default_email_list)-1)
     		if self.default_email_list ==[]:
-    			QMessageBox.warning(self,"Input Error","Cannot have a blank input")
+    			QMessageBox.warning(self,"Input Error","Cannot have a blank input!\nPlease input one email per line.")
     			return
 
     	#Check user input for incorrect format
     	for i in self.default_email_list:
     		if self.character2 in i:
-    			QMessageBox.warning(self,"Input Error","Cannot have a ',' in the input")
+    			QMessageBox.warning(self,"Input Error","Cannot have a , in the input!\nPlease input one email per line.")
     			return
     		elif self.character1 in i:
-    			QMessageBox.warning(self,"Input Error","Cannot have a space in the input")
+    			QMessageBox.warning(self,"Input Error","Cannot have a space in the input!\nPlease input one email per line.")
     			return
     		elif i =='':
-    			QMessageBox.warning(self,"Input Error","Cannot have a blank line")
+    			QMessageBox.warning(self,"Input Error","Cannot have a blank line!\nPlease input one email per line.")
     			return
     	try: 
     		options = QFileDialog.Options()
