@@ -491,9 +491,13 @@ class CANLogger(QMainWindow):
                     with open(self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'rb') as file:
                         data = file.read()
                 except FileNotFoundError: #If file is not on local PC
+                    QMessageBox.information(self,"File Info","{} will need to be downloaded to your PC for decryption.".format(self.meta_data_dict['filename']))
                     self.download_file()
-                if len(data) != self.meta_data_dict['filesize']: #If file size is not full size 
-                    self.download_file()
+
+                if self.download_status == False:
+                	return
+                elif self.hash_status == False:
+                	return
                 self.decrypt_file()
 
                 if self.cont == False:
@@ -541,10 +545,7 @@ class CANLogger(QMainWindow):
     def decrypt_file(self):
         if self.session_key is None:
             logger.debug("Decryption Needs a Session Key")
-        if self.download_status == 2:
-            QMessageBox.information(self,"Decrypting File","Process has been canceled")
-            self.cont = False
-            return
+
         # Calculate SHA of data
         # compare SHA If SHA is the same, Proceed
         #logger.debug(self.meta_data_dict["init_vect"])
@@ -605,57 +606,66 @@ class CANLogger(QMainWindow):
     def download_file(self):
         row = self.device_file_table.currentRow()
         filename = str(self.device_file_table.item(row, 3).text()) # select the filename entry
-        expected_size = int(self.device_file_table.item(row, 8).text()) #
-        logger.debug("Downloading file {}".format(filename))
-        # empty the queue
-        while not self.serial_queue.empty():
-            self.serial_queue.get_nowait()
-        time.sleep(0.5)
-        self.ser.write(b'BIN ' + bytes(filename,'ascii') + b'\n')
-        time.sleep(1)
-        ret_val = b''
-        #start_time = time.time()
-        #timeout = 1000
-        count = 0
-        self.download_status = 0
-        
-        #Add progress bar
-        loading_progress = QProgressDialog(self)
-        loading_progress.setMinimumWidth(300)
-        loading_progress.setWindowTitle("Transferring Log File to Computer")
-        loading_progress.setLabelText("This may take a while...")
-        loading_progress.setMinimumDuration(0)
-        loading_progress.setMaximum(expected_size)
-        loading_progress.setWindowModality(Qt.ApplicationModal)
-        if not os.path.exists('Log Files'):
-            os.makedirs('Log Files')
+        expected_size = int(self.device_file_table.item(row, 8).text())
+        download = True 
+        self.download_status = True
+
+        if expected_size >26214400:
+        	buttonReply = QMessageBox.question(self,"File Information","File size is more than 25 MB!\nTransferring {} through device serial may take up to 15 minutes.\nPress Yes to continue or No to transfer through SD card to your local PC yourself.".format(filename),QMessageBox.Yes | QMessageBox.No|QMessageBox.Cancel, QMessageBox.No)
+
+        	if buttonReply == QMessageBox.No:
+        		QMessageBox.information(self,"File Information","Please copy {} to {}.\nPress OK when file is in directory.".format(filename, self.home_directory + "\\Log Files\\"))
+        		download = False
+        	elif buttonReply == QMessageBox.Yes:
+        		download = True
+        	else:
+        		self.download_status = False
+        		return
+
+        if download == True:
+	        logger.debug("Downloading file {}".format(filename))
+	        # empty the queue
+	        while not self.serial_queue.empty():
+	            self.serial_queue.get_nowait()
+	        time.sleep(0.1)
+
+	        self.ser.write(b'BIN ' + bytes(filename,'ascii') + b'\n')
+	        time.sleep(0.5)
+	        ret_val = b''
+	        #start_time = time.time()
+	        #timeout = 1000
+	        count = 0
+	        self.hash_status = True
+
+	        if not os.path.exists('Log Files'):
+	            os.makedirs('Log Files')
+
+	        try:
+	            with open (self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'wb') as file:
+	                try:
+	                    while count < expected_size:
+	                        character = self.serial_queue.get()
+	                        file.write(character)
+	                        count += len(character)
+	                        print(count/expected_size*100)
+	                    file.close()
+	                except:
+	                    traceback.format_exc()   
+	                #current_time = (time.time() - start_time)
+	                #if  current_time > timeout:
+	                #    logger.debug("Download timed out.")
+	                #    break
+	                    
+	        except: 
+	            logger.debug(traceback.format_exc())
+
         try:
-            with open (self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'wb') as file:
-                try:
-                    while count < expected_size:
-                        character = self.serial_queue.get()
-                        file.write(character)
-                        count += len(character)
-                        #print(count)
-                        loading_progress.setValue(count)
-                        if loading_progress.wasCanceled():
-                            self.ser.write(b'OFF\n')
-                            time.sleep(0.1)
-                            self.download_status += 1
-                            break
-                            return
-                    file.close()
-                except:
-                    traceback.format_exc()   
-                #current_time = (time.time() - start_time)
-                #if  current_time > timeout:
-                #    logger.debug("Download timed out.")
-                #    break
-                    
-        except: 
-            logger.debug(traceback.format_exc())
-        with open(self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'rb') as file:
-            ret_val = file.read()
+	        with open(self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'rb') as file:
+	            ret_val = file.read()
+        except FileNotFoundError: #If file is not on local PC
+            QMessageBox.warning(self,"Error","There is no {} in {}!".format(filename, self.home_directory + '\\Log Files\\'))
+            self.download_status = False
+            return
 
         downloaded_size = len(ret_val)
         logger.debug("Downloaded {} bytes of {}".format(downloaded_size,expected_size))
@@ -671,8 +681,8 @@ class CANLogger(QMainWindow):
             logger.debug("SHA-256 digests match. Log File is authenticate.")
         else:
             logger.debug("Mismatch of SHA-256 digests. Log File is not authenticated.")
-            self.download_status += 1
-
+            self.hash_status = False
+            QMessageBox.warning(self,"Error","Downloaded log file Hash does not match")
 
         
     
@@ -975,11 +985,9 @@ class CANLogger(QMainWindow):
         if self.cont == False:
             return
         self.download_file()
-        if self.download_status == 1:
-            QMessageBox.warning(self,"Error","Downloaded log file Hash does not match")
+        if self.download_status == False:
             return
-        elif self.download_status == 2:
-            QMessageBox.information(self,"File Upload","Process has been canceled")
+        if self.hash_status == False:
             return
         self.body_dict['device_data']=self.meta_data_dict["base64"]
         self.body_dict['user_input_data']=self.user_input_dict
