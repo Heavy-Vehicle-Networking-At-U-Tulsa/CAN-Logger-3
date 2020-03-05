@@ -487,17 +487,12 @@ class CANLogger(QMainWindow):
             self.cont = True
             buttonReply = QMessageBox.question(self,"Log File","Do you want to save the decrypted version of selected file?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if buttonReply == QMessageBox.Yes:
-                try:
-                    with open(self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'rb') as file:
-                        data = file.read()
-                except FileNotFoundError: #If file is not on local PC
+                if not os.path.exists('Log Files/'+ self.meta_data_dict['filename']):
                     QMessageBox.information(self,"File Info","{} will need to be downloaded to your PC for decryption.".format(self.meta_data_dict['filename']))
-                    self.download_file()
-
+                self.download_file()
                 if self.download_status == False:
-                	return
-                elif self.hash_status == False:
-                	return
+                    return
+
                 self.decrypt_file()
 
                 if self.cont == False:
@@ -557,7 +552,7 @@ class CANLogger(QMainWindow):
                         backend=default_backend())
         decryptor = cipher.decryptor()
         self.decrypted_log = decryptor.update(self.encrypted_log_file) + decryptor.finalize()
-        logger.debug("Decrypted Log: {}".format(self.decrypted_log[:1024]))
+        #logger.debug("Decrypted Log: {}".format(self.decrypted_log[:1024]))
         logger.debug(len(self.decrypted_log))
 
 
@@ -607,20 +602,25 @@ class CANLogger(QMainWindow):
         row = self.device_file_table.currentRow()
         filename = str(self.device_file_table.item(row, 3).text()) # select the filename entry
         expected_size = int(self.device_file_table.item(row, 8).text())
+
         download = True 
         self.download_status = True
 
-        if expected_size >26214400:
-        	buttonReply = QMessageBox.question(self,"File Information","File size is more than 25 MB!\nTransferring {} through device serial may take up to 15 minutes.\nPress Yes to continue or No to transfer through SD card to your local PC yourself.".format(filename),QMessageBox.Yes | QMessageBox.No|QMessageBox.Cancel, QMessageBox.No)
+        if not os.path.exists('Log Files/'+filename):
+            if expected_size >26214400:
+            	buttonReply = QMessageBox.question(self,"File Information","File size is more than 25 MB!\nTransferring {} through device serial may take up to 15 minutes.\nPress Yes to continue or No to transfer through SD card to your local PC yourself.".format(filename),QMessageBox.Yes | QMessageBox.No|QMessageBox.Cancel, QMessageBox.No)
 
-        	if buttonReply == QMessageBox.No:
-        		QMessageBox.information(self,"File Information","Please copy {} to {}.\nPress OK when file is in directory.".format(filename, self.home_directory + "\\Log Files\\"))
-        		download = False
-        	elif buttonReply == QMessageBox.Yes:
-        		download = True
-        	else:
-        		self.download_status = False
-        		return
+            	if buttonReply == QMessageBox.No:
+            		QMessageBox.information(self,"File Information","Please copy {} to {}.\nPress OK when file is in directory.".format(filename, self.home_directory + "\\Log Files\\"))
+            		download = False
+            	elif buttonReply == QMessageBox.Yes:
+            		download = True
+            	else:
+            		self.download_status = False
+            		return
+        else:
+            download = False
+
 
         if download == True:
 	        logger.debug("Downloading file {}".format(filename))
@@ -635,8 +635,7 @@ class CANLogger(QMainWindow):
 	        #start_time = time.time()
 	        #timeout = 1000
 	        count = 0
-	        self.hash_status = True
-
+	        
 	        if not os.path.exists('Log Files'):
 	            os.makedirs('Log Files')
 
@@ -659,6 +658,7 @@ class CANLogger(QMainWindow):
 	        except: 
 	            logger.debug(traceback.format_exc())
 
+
         try:
 	        with open(self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'rb') as file:
 	            ret_val = file.read()
@@ -666,6 +666,7 @@ class CANLogger(QMainWindow):
             QMessageBox.warning(self,"Error","There is no {} in {}!".format(filename, self.home_directory + '\\Log Files\\'))
             self.download_status = False
             return
+
 
         downloaded_size = len(ret_val)
         logger.debug("Downloaded {} bytes of {}".format(downloaded_size,expected_size))
@@ -681,8 +682,8 @@ class CANLogger(QMainWindow):
             logger.debug("SHA-256 digests match. Log File is authenticate.")
         else:
             logger.debug("Mismatch of SHA-256 digests. Log File is not authenticated.")
-            self.hash_status = False
-            QMessageBox.warning(self,"Error","Downloaded log file Hash does not match")
+            self.download_status = False
+            QMessageBox.warning(self,"Error","SHA hash of {} in directory does not match with hash from metadata!\nPlease delete the file and download the file again.".format(self.meta_data_dict['filename']))
 
         
     
@@ -986,8 +987,6 @@ class CANLogger(QMainWindow):
             return
         self.download_file()
         if self.download_status == False:
-            return
-        if self.hash_status == False:
             return
         self.body_dict['device_data']=self.meta_data_dict["base64"]
         self.body_dict['user_input_data']=self.user_input_dict
