@@ -241,6 +241,7 @@ class CANLogger(QMainWindow):
         self.encrypted_log_file   = None
         self.session_key          = None
         self.connection_type      = None
+        self.list_file 			  = True
 
         self.character1 = ' '
         self.character2 = ','
@@ -381,7 +382,7 @@ class CANLogger(QMainWindow):
     #Send the encrypted server pem key password to the device for encryption
     #Must be done after the provisioning process
     def decrypt_password(self):
-        QMessageBox.information(self,"Deccrypt Encrypted Password","Please choose the security list JSON file from Provisioning step.")
+        QMessageBox.information(self,"Deccrypt Encrypted Password","Make sure your device has Provisioning firmware.\nPlease choose the security list JSON file from Provisioning step.")
         options = QFileDialog.Options()
         options |= QFileDialog.Detail
         self.data_file_name, data_file_type = QFileDialog.getOpenFileName(self,
@@ -394,10 +395,12 @@ class CANLogger(QMainWindow):
             with open(self.data_file_name,'r') as file:
                 data = json.load(file)
 
+            self.list_file = False
             #Open serial COM port if not connected
             while not self.connected:
                 if self.connect_logger_by_usb() is None:
                     return
+            self.list_file = True
             # empty the queue
             while not self.serial_queue.empty():
                 self.serial_queue.get_nowait()
@@ -587,7 +590,8 @@ class CANLogger(QMainWindow):
             self.serial_thread.start()
             logger.debug("Started Serial Thread.")
 
-            self.list_device_files()
+            if self.list_file:
+            	self.list_device_files()
             return True
         except serial.serialutil.SerialException:
             logger.debug(traceback.format_exc())
