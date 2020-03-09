@@ -266,10 +266,11 @@ class CANLogger(QMainWindow):
             header = {}
             header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
             header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
-
+            self.list_file = False
             while not self.connected:
                 if self.connect_logger_by_usb() is None:
                     return
+            self.list_file = True
             # empty the queue
             while not self.serial_queue.empty():
                 self.serial_queue.get_nowait()
@@ -513,15 +514,17 @@ class CANLogger(QMainWindow):
                         file.write(self.decrypted_log)
                         file.close()
         else:
-            QMessageBox.information(self,"Server Return","The server returned a status code {}.\n{}".format(r.status_code,r.text))  
+            QMessageBox.information(self,"Error","The server returned a status code {}.\n{}".format(r.status_code,r.text))  
 
     def format_sd_card(self):
         buttonReply = QMessageBox.question(self,"Are you sure?","Formatting will erase all the data on the SD Card. ", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if buttonReply == QMessageBox.Yes:
         	#Open serial COM port if not connected
+            self.list_file = False
             while not self.connected:
                 if self.connect_logger_by_usb() is None:
                     return
+            self.list_file = True
             # empty the queue
             while not self.serial_queue.empty():
                 self.serial_queue.get_nowait()
@@ -772,14 +775,16 @@ class CANLogger(QMainWindow):
         row = 0
 
         #Add progress bar
-        loading_progress = QProgressDialog(self)
-        loading_progress.setMinimumWidth(300)
-        loading_progress.setWindowTitle("Retrieving {} Log Files Metadata".format(len(file_meta_data_list)))
-        loading_progress.setLabelText("This may take a while...")
-        loading_progress.setMinimumDuration(0)
-        loading_progress.setMaximum(len(file_meta_data_list))
-        loading_progress.setWindowModality(Qt.ApplicationModal)
-        index = 0
+        if len(file_meta_data_list) !=0:
+	        loading_progress = QProgressDialog(self)
+	        loading_progress.setMinimumWidth(300)
+	        loading_progress.setWindowTitle("Retrieving {} Log Files Metadata".format(len(file_meta_data_list)))
+	        loading_progress.setLabelText("This may take a while...")
+	        loading_progress.setMinimumDuration(0)
+	        loading_progress.setMaximum(len(file_meta_data_list))
+	        loading_progress.setWindowModality(Qt.ApplicationModal)
+	    
+	    index = 0
 
         for line_data in file_meta_data_list:
             index +=1
