@@ -369,13 +369,13 @@ class CANLogger(QMainWindow):
             #if os.path.getsize(self.data_file_name) >0:
                 with open(self.data_file_name,'r') as file:
                     data = json.load(file)
-                data[self.serial_id] = {'sever_pem_key':self.server_pem,'encrypted_password':self.rand_pass}
+                data[self.serial_id] = {'server_pem_key':self.server_pem,'encrypted_password':self.rand_pass}
                 with open(self.data_file_name,'w') as file:
                     json.dump(data,file, indent=4)
                 
             else:
                 with open(self.data_file_name,'w') as file:
-                    data = {self.serial_id:{'sever_pem_key':self.server_pem,'encrypted_password':self.rand_pass}}
+                    data = {self.serial_id:{'server_pem_key':self.server_pem,'encrypted_password':self.rand_pass}}
                     json.dump(data,file, indent=4)
             QMessageBox.information(self,"Save File","File is successfully saved!")
                 
