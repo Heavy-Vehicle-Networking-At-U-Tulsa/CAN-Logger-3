@@ -427,7 +427,7 @@ class CANLogger(QMainWindow):
             typable_pass = bytes.fromhex(ret_val.decode('ascii')).decode('ascii')
 
             #Display the decrypted password
-            msg=QMessageBox()
+            msg=QMessageBox(self)
             msg.setIcon(QMessageBox.Information)
             msg.setText("The plain text password is:\n{}".format(typable_pass))
             msg.setWindowTitle("Decrypt Password")
@@ -481,7 +481,7 @@ class CANLogger(QMainWindow):
             session_key_hex = self.session_key.hex().upper()
 
             #Display the AES session key for user
-            msg=QMessageBox()
+            msg=QMessageBox(self)
             msg.setIcon(QMessageBox.Information)
             msg.setText("The Session Key was recovered from the secure server.\nThe AES session key for the file is:\n{}".format(session_key_hex))
             msg.setWindowTitle("Session Key")
@@ -783,8 +783,8 @@ class CANLogger(QMainWindow):
 	        loading_progress.setMinimumDuration(0)
 	        loading_progress.setMaximum(len(file_meta_data_list))
 	        loading_progress.setWindowModality(Qt.ApplicationModal)
-	    
-	    index = 0
+        
+        index = 0
 
         for line_data in file_meta_data_list:
             index +=1
@@ -1277,7 +1277,7 @@ class CANLogger(QMainWindow):
 
 
             #Ask user to save log file as encrypted or plaintext version
-            msg = QMessageBox()
+            msg = QMessageBox(self)
             msg.setText("What version do you want to save your log file on your local computer?")
             msg.setWindowTitle("Save Option")
             msg.setIcon(QMessageBox.Question)
@@ -1341,7 +1341,7 @@ class CANLogger(QMainWindow):
         body_dict = {}
         body_dict["digest"] = self.server_meta_data_dict["digest"]
         #Ask user to save log file as encrypted or plaintext version
-        msg = QMessageBox()
+        msg = QMessageBox(self)
         msg.setText("Do you want to share or revoke access?")
         msg.setWindowTitle("Share Access")
         msg.setIcon(QMessageBox.Question)

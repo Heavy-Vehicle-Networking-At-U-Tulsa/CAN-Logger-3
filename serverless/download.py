@@ -87,7 +87,7 @@ def download(event, context):
 
     #Check if email is the uploader or has share access
     if not email == item['uploader'] and not email in item['access_list']:
-        return response(400, "You do not permission to download this file.")
+        return response(400, "You do not have permission to download this file.")
 
     session_key = bytearray.fromhex(item["session_key"])
     

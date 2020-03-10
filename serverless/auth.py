@@ -90,13 +90,12 @@ def auth(event, context):
         ).get('Item')
         session_key = bytearray.fromhex(item["session_key"])
     except Exception as e:
-        return response(400, "File Meta data not availalble. Please upload file.\n{}".format(repr(e)))
+        return response(400, "File Meta data not available. Please upload file!")
 
     
-
     #Check if email is the uploader or has share access
     if not email == item['uploader'] and not email in item['access_list']:
-        return response(400, "You do not permission to download this file.")
+        return response(400, "You do not have permission to download this file.")
     
     #use the first 16 bytes (128 bits) of the shared secret to decrypt the session key
     cipher = Cipher(algorithms.AES(shared_secret[:16]), 
