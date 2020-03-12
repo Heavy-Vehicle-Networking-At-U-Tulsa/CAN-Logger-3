@@ -1272,9 +1272,17 @@ class CANLogger(QMainWindow):
 
         if r.status_code ==200: #This is normal return value
             data_dict = r.json()
-            log_file = base64.b64decode(data_dict['log_file'])
+            log_file_url = data_dict['log_file']
             session_key = base64.b64decode(data_dict['session_key'])
 
+            r1 = requests.get(log_file_url)
+
+            if r1.status_code == 200:
+                log_file = r1.content
+
+            else:
+                QMessageBox.warning(self,"Error","There was an error trying to download the log file.")
+                return
 
             #Ask user to save log file as encrypted or plaintext version
             msg = QMessageBox(self)
@@ -1320,7 +1328,7 @@ class CANLogger(QMainWindow):
 
         else: #Something went wrong
             logger.debug(r.text)
-            QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
+            QMessageBox.warning(self,"Error","The there was an error:\n{}".format(r.text))
             return
 
     def share_access(self):
