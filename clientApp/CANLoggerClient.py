@@ -1088,7 +1088,7 @@ class CANLogger(QMainWindow):
         buttonBox.accepted.connect(self.get_data)
         buttonBox.rejected.connect(self.reject)
 
-        self.window = QDialog()
+        self.window = QDialog(self)
         mainLayout = QVBoxLayout(self.window)
         mainLayout.addWidget(formGroupBox)
         mainLayout.addWidget(buttonBox)
@@ -1370,7 +1370,7 @@ class CANLogger(QMainWindow):
             buttonBox.accepted.connect(self.get_email)
             buttonBox.rejected.connect(self.reject)
 
-            self.window = QDialog()
+            self.window = QDialog(self)
             mainLayout = QVBoxLayout(self.window)
             mainLayout.addWidget(formGroupBox)
             mainLayout.addWidget(buttonBox)
@@ -1449,7 +1449,7 @@ class CANLogger(QMainWindow):
         buttonBox.accepted.connect(self.get_email_list)
         buttonBox.rejected.connect(self.reject)
 
-        self.window = QDialog()
+        self.window = QDialog(self)
         mainLayout = QVBoxLayout(self.window)
         mainLayout.addWidget(formGroupBox)
         mainLayout.addWidget(buttonBox)

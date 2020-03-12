@@ -123,7 +123,7 @@ def provision(event,context):
         'sourceIp':ip_address,
         'encrypted_data_key': base64.b64encode(data_key_encrypted).decode('utf-8'),
         'encrypted_server_pem_key': base64.b64encode(server_pem_key_encrypted).decode('utf-8'),
-        'password_for_testing': rand_pass.decode('ascii') #Will delete after testing
+        #'password_for_testing': rand_pass.decode('ascii') #Will delete after testing
 
         }
 
