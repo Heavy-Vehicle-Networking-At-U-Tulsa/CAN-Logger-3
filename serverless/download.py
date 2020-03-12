@@ -100,16 +100,21 @@ def download(event, context):
     print(clear_key.hex().upper())
 
     #Get encrypted log file
-    s3 = boto3.resource('s3')
+    s3_client = boto3.client('s3')
     try:
-        obj = s3.Object('can-log-files',body['digest'])
+        #obj = s3.Object('can-log-files',body['digest'])
+        #https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3.html#S3.Client.generate_presigned_url
+        log_file_url = s3_client.generate_presigned_url('get_object',
+                                                    Params={'Bucket': 'can-log-files',
+                                                            'Key': body['digest']},
+                                                    ExpiresIn=3600)
+        print(log_file_url)
     except Exception as e:
+        print(e)
         return response(400, "Log file cannot be found in s3 Bucket")
 
-    log_file = obj.get()['Body'].read()
-    encoded_log_file = base64.b64encode(log_file).decode('ascii')
     encoded_clear_key = base64.b64encode(clear_key).decode('ascii')
-    data = {'log_file':encoded_log_file,'session_key':encoded_clear_key}
+    data = {'log_file':log_file_url,'session_key':encoded_clear_key}
 
     # set attribution data
     timestamp = get_timestamp(time.time())
