@@ -241,6 +241,7 @@ class CANLogger(QMainWindow):
         self.encrypted_log_file   = None
         self.session_key          = None
         self.connection_type      = None
+        self.list_file 			  = True
 
         self.character1 = ' '
         self.character2 = ','
@@ -265,10 +266,11 @@ class CANLogger(QMainWindow):
             header = {}
             header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
             header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
-
+            self.list_file = False
             while not self.connected:
                 if self.connect_logger_by_usb() is None:
                     return
+            self.list_file = True
             # empty the queue
             while not self.serial_queue.empty():
                 self.serial_queue.get_nowait()
@@ -367,13 +369,13 @@ class CANLogger(QMainWindow):
             #if os.path.getsize(self.data_file_name) >0:
                 with open(self.data_file_name,'r') as file:
                     data = json.load(file)
-                data[self.serial_id] = {'sever_pem_key':self.server_pem,'encrypted_password':self.rand_pass}
+                data[self.serial_id] = {'server_pem_key':self.server_pem,'encrypted_password':self.rand_pass}
                 with open(self.data_file_name,'w') as file:
                     json.dump(data,file, indent=4)
                 
             else:
                 with open(self.data_file_name,'w') as file:
-                    data = {self.serial_id:{'sever_pem_key':self.server_pem,'encrypted_password':self.rand_pass}}
+                    data = {self.serial_id:{'server_pem_key':self.server_pem,'encrypted_password':self.rand_pass}}
                     json.dump(data,file, indent=4)
             QMessageBox.information(self,"Save File","File is successfully saved!")
                 
@@ -381,7 +383,7 @@ class CANLogger(QMainWindow):
     #Send the encrypted server pem key password to the device for encryption
     #Must be done after the provisioning process
     def decrypt_password(self):
-        QMessageBox.information(self,"Deccrypt Encrypted Password","Please choose the security list JSON file from Provisioning step.")
+        QMessageBox.information(self,"Deccrypt Encrypted Password","Make sure your device has Provisioning firmware.\nPlease choose the security list JSON file from Provisioning step.")
         options = QFileDialog.Options()
         options |= QFileDialog.Detail
         self.data_file_name, data_file_type = QFileDialog.getOpenFileName(self,
@@ -394,10 +396,12 @@ class CANLogger(QMainWindow):
             with open(self.data_file_name,'r') as file:
                 data = json.load(file)
 
+            self.list_file = False
             #Open serial COM port if not connected
             while not self.connected:
                 if self.connect_logger_by_usb() is None:
                     return
+            self.list_file = True
             # empty the queue
             while not self.serial_queue.empty():
                 self.serial_queue.get_nowait()
@@ -423,7 +427,7 @@ class CANLogger(QMainWindow):
             typable_pass = bytes.fromhex(ret_val.decode('ascii')).decode('ascii')
 
             #Display the decrypted password
-            msg=QMessageBox()
+            msg=QMessageBox(self)
             msg.setIcon(QMessageBox.Information)
             msg.setText("The plain text password is:\n{}".format(typable_pass))
             msg.setWindowTitle("Decrypt Password")
@@ -477,7 +481,7 @@ class CANLogger(QMainWindow):
             session_key_hex = self.session_key.hex().upper()
 
             #Display the AES session key for user
-            msg=QMessageBox()
+            msg=QMessageBox(self)
             msg.setIcon(QMessageBox.Information)
             msg.setText("The Session Key was recovered from the secure server.\nThe AES session key for the file is:\n{}".format(session_key_hex))
             msg.setWindowTitle("Session Key")
@@ -487,13 +491,12 @@ class CANLogger(QMainWindow):
             self.cont = True
             buttonReply = QMessageBox.question(self,"Log File","Do you want to save the decrypted version of selected file?", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
             if buttonReply == QMessageBox.Yes:
-                try:
-                    with open(self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'rb') as file:
-                        data = file.read()
-                except FileNotFoundError: #If file is not on local PC
-                    self.download_file()
-                if len(data) != self.meta_data_dict['filesize']: #If file size is not full size 
-                    self.download_file()
+                if not os.path.exists('Log Files/'+ self.meta_data_dict['filename']):
+                    QMessageBox.information(self,"File Info","{} will need to be downloaded to your PC for decryption.".format(self.meta_data_dict['filename']))
+                self.download_file()
+                if self.download_status == False:
+                    return
+
                 self.decrypt_file()
 
                 if self.cont == False:
@@ -511,15 +514,17 @@ class CANLogger(QMainWindow):
                         file.write(self.decrypted_log)
                         file.close()
         else:
-            QMessageBox.information(self,"Server Return","The server returned a status code {}.\n{}".format(r.status_code,r.text))  
+            QMessageBox.information(self,"Error","The server returned a status code {}.\n{}".format(r.status_code,r.text))  
 
     def format_sd_card(self):
         buttonReply = QMessageBox.question(self,"Are you sure?","Formatting will erase all the data on the SD Card. ", QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if buttonReply == QMessageBox.Yes:
         	#Open serial COM port if not connected
+            self.list_file = False
             while not self.connected:
                 if self.connect_logger_by_usb() is None:
                     return
+            self.list_file = True
             # empty the queue
             while not self.serial_queue.empty():
                 self.serial_queue.get_nowait()
@@ -541,10 +546,7 @@ class CANLogger(QMainWindow):
     def decrypt_file(self):
         if self.session_key is None:
             logger.debug("Decryption Needs a Session Key")
-        if self.download_status == 2:
-            QMessageBox.information(self,"Decrypting File","Process has been canceled")
-            self.cont = False
-            return
+
         # Calculate SHA of data
         # compare SHA If SHA is the same, Proceed
         #logger.debug(self.meta_data_dict["init_vect"])
@@ -556,7 +558,7 @@ class CANLogger(QMainWindow):
                         backend=default_backend())
         decryptor = cipher.decryptor()
         self.decrypted_log = decryptor.update(self.encrypted_log_file) + decryptor.finalize()
-        logger.debug("Decrypted Log: {}".format(self.decrypted_log[:1024]))
+        #logger.debug("Decrypted Log: {}".format(self.decrypted_log[:1024]))
         logger.debug(len(self.decrypted_log))
 
 
@@ -591,7 +593,8 @@ class CANLogger(QMainWindow):
             self.serial_thread.start()
             logger.debug("Started Serial Thread.")
 
-            self.list_device_files()
+            if self.list_file:
+            	self.list_device_files()
             return True
         except serial.serialutil.SerialException:
             logger.debug(traceback.format_exc())
@@ -605,57 +608,72 @@ class CANLogger(QMainWindow):
     def download_file(self):
         row = self.device_file_table.currentRow()
         filename = str(self.device_file_table.item(row, 3).text()) # select the filename entry
-        expected_size = int(self.device_file_table.item(row, 8).text()) #
-        logger.debug("Downloading file {}".format(filename))
-        # empty the queue
-        while not self.serial_queue.empty():
-            self.serial_queue.get_nowait()
-        time.sleep(0.5)
-        self.ser.write(b'BIN ' + bytes(filename,'ascii') + b'\n')
-        time.sleep(0.5)
-        ret_val = b''
-        #start_time = time.time()
-        #timeout = 1000
-        count = 0
-        self.download_status = 0
-        
-        #Add progress bar
-        loading_progress = QProgressDialog(self)
-        loading_progress.setMinimumWidth(300)
-        loading_progress.setWindowTitle("Transferring Log File to Computer")
-        loading_progress.setLabelText("This may take a while...")
-        loading_progress.setMinimumDuration(0)
-        loading_progress.setMaximum(expected_size)
-        loading_progress.setWindowModality(Qt.ApplicationModal)
-        if not os.path.exists('Log Files'):
-            os.makedirs('Log Files')
+        expected_size = int(self.device_file_table.item(row, 8).text())
+
+        download = True 
+        self.download_status = True
+
+        if not os.path.exists('Log Files/'+filename):
+            if expected_size >26214400:
+            	buttonReply = QMessageBox.question(self,"File Information","File size is more than 25 MB!\nTransferring {} through device serial may take up to 15 minutes.\nPress Yes to continue or No to transfer through SD card to your local PC yourself.".format(filename),QMessageBox.Yes | QMessageBox.No|QMessageBox.Cancel, QMessageBox.No)
+
+            	if buttonReply == QMessageBox.No:
+            		QMessageBox.information(self,"File Information","Please copy {} to {}.\nPress OK when file is in directory.".format(filename, self.home_directory + "\\Log Files\\"))
+            		download = False
+            	elif buttonReply == QMessageBox.Yes:
+            		download = True
+            	else:
+            		self.download_status = False
+            		return
+        else:
+            download = False
+
+
+        if download == True:
+	        logger.debug("Downloading file {}".format(filename))
+	        # empty the queue
+	        while not self.serial_queue.empty():
+	            self.serial_queue.get_nowait()
+	        time.sleep(0.1)
+
+	        self.ser.write(b'BIN ' + bytes(filename,'ascii') + b'\n')
+	        time.sleep(0.5)
+	        ret_val = b''
+	        #start_time = time.time()
+	        #timeout = 1000
+	        count = 0
+	        
+	        if not os.path.exists('Log Files'):
+	            os.makedirs('Log Files')
+
+	        try:
+	            with open (self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'wb') as file:
+	                try:
+	                    while count < expected_size:
+	                        character = self.serial_queue.get()
+	                        file.write(character)
+	                        count += len(character)
+	                        print(count/expected_size*100)
+	                    file.close()
+	                except:
+	                    traceback.format_exc()   
+	                #current_time = (time.time() - start_time)
+	                #if  current_time > timeout:
+	                #    logger.debug("Download timed out.")
+	                #    break
+	                    
+	        except: 
+	            logger.debug(traceback.format_exc())
+
+
         try:
-            with open (self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'wb') as file:
-                try:
-                    while count < expected_size:
-                        character = self.serial_queue.get()
-                        file.write(character)
-                        count += len(character)
-                        #print(count)
-                        loading_progress.setValue(count)
-                        if loading_progress.wasCanceled():
-                            self.ser.write(b'OFF\n')
-                            time.sleep(0.1)
-                            self.download_status += 1
-                            break
-                            return
-                    file.close()
-                except:
-                    traceback.format_exc()   
-                #current_time = (time.time() - start_time)
-                #if  current_time > timeout:
-                #    logger.debug("Download timed out.")
-                #    break
-                    
-        except: 
-            logger.debug(traceback.format_exc())
-        with open(self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'rb') as file:
-            ret_val = file.read()
+	        with open(self.home_directory + '/Log Files/' + self.meta_data_dict['filename'],'rb') as file:
+	            ret_val = file.read()
+        except FileNotFoundError: #If file is not on local PC
+            QMessageBox.warning(self,"Error","There is no {} in {}!".format(filename, self.home_directory + '\\Log Files\\'))
+            self.download_status = False
+            return
+
 
         downloaded_size = len(ret_val)
         logger.debug("Downloaded {} bytes of {}".format(downloaded_size,expected_size))
@@ -671,8 +689,8 @@ class CANLogger(QMainWindow):
             logger.debug("SHA-256 digests match. Log File is authenticate.")
         else:
             logger.debug("Mismatch of SHA-256 digests. Log File is not authenticated.")
-            self.download_status += 1
-
+            self.download_status = False
+            QMessageBox.warning(self,"Error","SHA hash of {} in directory does not match with hash from metadata!\nPlease delete the file and download the file again.".format(self.meta_data_dict['filename']))
 
         
     
@@ -757,13 +775,15 @@ class CANLogger(QMainWindow):
         row = 0
 
         #Add progress bar
-        loading_progress = QProgressDialog(self)
-        loading_progress.setMinimumWidth(300)
-        loading_progress.setWindowTitle("Retrieving {} Log Files Metadata".format(len(file_meta_data_list)))
-        loading_progress.setLabelText("This may take a while...")
-        loading_progress.setMinimumDuration(0)
-        loading_progress.setMaximum(len(file_meta_data_list))
-        loading_progress.setWindowModality(Qt.ApplicationModal)
+        if len(file_meta_data_list) !=0:
+	        loading_progress = QProgressDialog(self)
+	        loading_progress.setMinimumWidth(300)
+	        loading_progress.setWindowTitle("Retrieving {} Log Files Metadata".format(len(file_meta_data_list)))
+	        loading_progress.setLabelText("This may take a while...")
+	        loading_progress.setMinimumDuration(0)
+	        loading_progress.setMaximum(len(file_meta_data_list))
+	        loading_progress.setWindowModality(Qt.ApplicationModal)
+        
         index = 0
 
         for line_data in file_meta_data_list:
@@ -975,11 +995,7 @@ class CANLogger(QMainWindow):
         if self.cont == False:
             return
         self.download_file()
-        if self.download_status == 1:
-            QMessageBox.warning(self,"Error","Downloaded log file Hash does not match")
-            return
-        elif self.download_status == 2:
-            QMessageBox.information(self,"File Upload","Process has been canceled")
+        if self.download_status == False:
             return
         self.body_dict['device_data']=self.meta_data_dict["base64"]
         self.body_dict['user_input_data']=self.user_input_dict
@@ -994,7 +1010,6 @@ class CANLogger(QMainWindow):
             response_dict = r.json()
             logger.debug(response_dict['upload_link'])
             
-
             r1 = requests.post( response_dict['upload_link']['url'], 
                                 data=response_dict['upload_link']['fields'], 
                                 files={'file': self.encrypted_log_file}
@@ -1028,6 +1043,7 @@ class CANLogger(QMainWindow):
     	if r.status_code == 200: #This is normal return value
     		print(r.text)
     		QMessageBox.information(self,"Success", "Successfully uploaded binary file.\nDigest: {}".format(self.meta_data_dict['file_uid']))
+    		self.statusBar().showMessage("Successfully uploaded binary file.")
     	else:
     		logger.debug(r.text)
     		QMessageBox.warning(self,"Connection Error","The there was an error:\n{}".format(r.text))
@@ -1054,7 +1070,7 @@ class CANLogger(QMainWindow):
             self.make.addItem(str(i))
 
         today = datetime.datetime.today()
-        year_list = range(1995,today.year+1)
+        year_list = range(1995,today.year+2)
         self.year.addItem(' ')
         for i in reversed(year_list):
             self.year.addItem(str(i))
@@ -1261,7 +1277,7 @@ class CANLogger(QMainWindow):
 
 
             #Ask user to save log file as encrypted or plaintext version
-            msg = QMessageBox()
+            msg = QMessageBox(self)
             msg.setText("What version do you want to save your log file on your local computer?")
             msg.setWindowTitle("Save Option")
             msg.setIcon(QMessageBox.Question)
@@ -1325,7 +1341,7 @@ class CANLogger(QMainWindow):
         body_dict = {}
         body_dict["digest"] = self.server_meta_data_dict["digest"]
         #Ask user to save log file as encrypted or plaintext version
-        msg = QMessageBox()
+        msg = QMessageBox(self)
         msg.setText("Do you want to share or revoke access?")
         msg.setWindowTitle("Share Access")
         msg.setIcon(QMessageBox.Question)
@@ -1396,7 +1412,7 @@ class CANLogger(QMainWindow):
             QMessageBox.warning(self,"Input Error","Cannot have a space in the input")
             return
         elif (self.character2 in self.email_input):
-            QMessageBox.warning(self,"Input Error","Cannot have a ',' in the input")
+            QMessageBox.warning(self,"Input Error","Cannot have a , in the input")
             return
         self.status = True
         self.window.accept()
@@ -1448,19 +1464,19 @@ class CANLogger(QMainWindow):
     	if self.default_email_list[len(self.default_email_list)-1] =='':
     		self.default_email_list.pop(len(self.default_email_list)-1)
     		if self.default_email_list ==[]:
-    			QMessageBox.warning(self,"Input Error","Cannot have a blank input")
+    			QMessageBox.warning(self,"Input Error","Cannot have a blank input!\nPlease input one email per line.")
     			return
 
     	#Check user input for incorrect format
     	for i in self.default_email_list:
     		if self.character2 in i:
-    			QMessageBox.warning(self,"Input Error","Cannot have a ',' in the input")
+    			QMessageBox.warning(self,"Input Error","Cannot have a , in the input!\nPlease input one email per line.")
     			return
     		elif self.character1 in i:
-    			QMessageBox.warning(self,"Input Error","Cannot have a space in the input")
+    			QMessageBox.warning(self,"Input Error","Cannot have a space in the input!\nPlease input one email per line.")
     			return
     		elif i =='':
-    			QMessageBox.warning(self,"Input Error","Cannot have a blank line")
+    			QMessageBox.warning(self,"Input Error","Cannot have a blank line!\nPlease input one email per line.")
     			return
     	try: 
     		options = QFileDialog.Options()
