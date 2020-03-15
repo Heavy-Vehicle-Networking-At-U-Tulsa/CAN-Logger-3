@@ -524,6 +524,9 @@ class CANLogger(QMainWindow):
             while not self.connected:
                 if self.connect_logger_by_usb() is None:
                     return
+            time.sleep(0.1)
+            self.ser.write(b'0\n')
+            time.sleep(0.1)
             self.list_file = True
             # empty the queue
             while not self.serial_queue.empty():

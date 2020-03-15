@@ -123,6 +123,7 @@ char iv_string[16];
 // define a counter to reset after each second is counted.
 elapsedMicros microsecondsPerSecond;
 elapsedMicros micro_timer;
+elapsedMicros t;
 // Get a uniqueName for the Logger File
 char logger_name[4];
 bool file_open;
@@ -145,7 +146,6 @@ uint8_t ext_flag;
 #define GREEN_LED 6
 #define RED_LED 14
 #define YELLOW_LED 5
-#define BLUE_LED 39
 
 boolean GREEN_LED_state;
 boolean RED_LED_state;
@@ -184,6 +184,7 @@ uint8_t current_channel;
 uint8_t data_buffer[BUFFER_SIZE];
 uint16_t current_position;
 unsigned int buffer_counter;
+unsigned int t_total;
 
 //Counter and timer to keep track of transmitted messages
 #define TX_MESSAGE_TIME 2 //milliseconds
@@ -676,6 +677,7 @@ void open_binFile(){
 
 void close_binFile(){
   micro_timer = 0;
+  t = 0;
   if (first_buffer_sent){
     if (hash_counter < 8){
       for (int j = 0; j < (8 - hash_counter)*SHA_UPDATE_SIZE; j++){
@@ -695,7 +697,9 @@ void close_binFile(){
     binFile.write(cipher_text, BUFFER_SIZE);
     uint32_t file_size = binFile.size();
     binFile.close();
-    
+    t_total = t;
+    Serial.print("Time to close bin file is:");
+    Serial.println(t);
     Serial.print(",SIZE:");
     memcpy(&data_file_contents[data_file_index],",SIZE:",6);
     data_file_index+=6;
@@ -886,7 +890,6 @@ void setup(void) {
   pinMode(GREEN_LED, OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
   pinMode(RED_LED, OUTPUT);
-  pinMode(BLUE_LED, OUTPUT);
   GREEN_LED_state = HIGH;
   YELLOW_LED_state = HIGH;
   RED_LED_state = HIGH;
@@ -1028,9 +1031,14 @@ void setup(void) {
 
 
 void write_final_meta_data(){
+  t = 0;
   sha256Instance->update(cipher_text,BUFFER_SIZE);
   sha256Instance->final(hash);
   delete sha256Instance;
+  t_total = t_total+t;
+  Serial.print("Time to hash last buffer is:");
+    Serial.println(t);
+  t = 0;
   Serial.print(",BIN-SHA:");
   memcpy(&data_file_contents[data_file_index],",BIN-SHA:",9);
   data_file_index+=9;
@@ -1041,12 +1049,15 @@ void write_final_meta_data(){
     memcpy(&data_file_contents[data_file_index],&hex_digit,2);
     data_file_index+=2;
   }
-    
+  
   sha256Instance=new Sha256();
   sha256Instance->update(data_file_contents, strlen((const char*)data_file_contents));
   sha256Instance->final(hash);
   delete sha256Instance;
-  
+  t_total = t_total+t;
+  Serial.print("Time to hash metadata textfile is:");
+    Serial.println(t);
+  t = 0;
   Serial.print(",TXT-SHA:");
   memcpy(&data_file_contents[data_file_index],",TXT-SHA:",9);
   data_file_index+=9;
@@ -1060,6 +1071,10 @@ void write_final_meta_data(){
   
   // Compute Signature here
   atecc.createSignature(hash);
+  t_total = t_total+t;
+  Serial.print("Time to sign the textfile is:");
+    Serial.println(t);
+  t = 0;
   Serial.print(",SIG:");
   memcpy(&data_file_contents[data_file_index],",SIG:",5);
   data_file_index+=5;
@@ -1081,10 +1096,17 @@ void write_final_meta_data(){
     Serial.println(data_file_name);
   }
   else{
-
-    dataFile.write(data_file_contents,1024);
+    t = 0;
+     dataFile.write(data_file_contents,1024);
+        
     dataFile.close();
-    
+    t_total = t_total+t;
+  Serial.print("Time to close metadata file is:");
+    Serial.println(t);
+  Serial.print("Total time to close is:");
+    Serial.println(t_total);
+    digitalWrite(RED_LED,HIGH);
+    delay(5000);  
   }
   Serial.println(data_file_contents);
   
