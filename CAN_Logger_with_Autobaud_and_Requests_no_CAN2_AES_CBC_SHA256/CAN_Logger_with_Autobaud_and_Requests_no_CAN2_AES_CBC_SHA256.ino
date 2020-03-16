@@ -63,15 +63,10 @@ ATECCX08A atecc;
 //Get access to a hardware based CRC32 
 FastCRC32 CRC32;
 
-
-// This data needs to be retrieved from the ATECC chip during startup.
-uint8_t server_public_key[64] = {
-0x19,0x23,0x9B,0x5A,0x85,0x3F,0x1B,0x07,0x9C,0x87,0x94,0xDF,0x1F,0xF5,0xA5,0x18,0xC5,0xB4,0x42,0x8C,0xBA,0x8B,0xB7,0x01,0x38,0x2E,0x8D,0x75,0xE2,0x82,0x4B,0xB0,0xD9,0x5A,0xF5,0xEE,0x75,0x72,0xBE,0xEC,0x5A,0x04,0xA5,0x20,0x45,0x1D,0xAF,0xE9,0x2B,0x33,0x6E,0x3A,0xEC,0x4A,0xA3,0x1F,0x8B,0x35,0xD7,0xA4,0x7A,0xD8,0x75,0x3D};
-
 // Use this buffer to keep track of the meta data for each file
-char data_file_contents[569];
+char data_file_contents[569]; //Fixed size of a regular metadata file
 uint16_t data_file_index = 0;
-char filesize_hash_contents[42];
+char filesize_hash_contents[42]; //10 bytes for filesize and 32 bytes for bin hash
 
 // define the number of rounds with AES encryption.
 #define AES_128_NROUNDS 10
@@ -81,10 +76,10 @@ char filesize_hash_contents[42];
 #define EEPROM_DEVICE_ID_ADDR     4  // 5, 6, 7=00
 #define EEPROM_FILE_ID_ADDR       8  // 9, 10, 11 ==00
 #define EEPROM_BRAND_NAME_ADDR    12 //13 and 14 ==00
-#define EEPROM_metadata_ADDR      16
-#define EEPROM_filesize_hash_ADDR 1040 //EEPROM_metadata_ADDR+sizeof(data_file_contents)
+#define EEPROM_metadata_ADDR      16 
+#define EEPROM_filesize_hash_ADDR 585 //EEPROM_metadata_ADDR + sizeof(data_file_contents)
 
-#define initial_metadata_size  274
+#define initial_metadata_size  274 //Time, bitrate, SN, encrypted AES key, IV, Pub
 
 #define CRC32_BUFFER_LOC       508
 
@@ -113,11 +108,12 @@ CAN_message_t rxmsg,txmsg;
 #define SILENT_0   42
 #define SILENT_1   41
 #define SILENT_2   40
-#define BUTTON_PIN 28
+//#define BUTTON_PIN 20 //version 3
+#define BUTTON_PIN 28 //version 3b
 #define POWER_PIN  21
 
+//RAW analog Voltage Monitoring
 int RAW_voltage;
-int max_RAW_voltage = 0;
 int RAW_input = A22;
 
 // Use the button for multiple inputs: click, doubleclick, and long click.
@@ -662,7 +658,8 @@ void open_binFile(){
   buffer_counter = 1;
   first_buffer_sent = false;
   sha256Instance = new Sha256();
-    
+
+  //Increase file name by 1
   get_current_file();
   
   sprintf(current_file_name,"%s%s%s.bin",brand_name,logger_name,current_file);
@@ -704,11 +701,11 @@ void close_binFile(){
     uint32_t file_size = binFile.size();
 
     binFile.close();
-    
+    Serial.println();
     Serial.print("Time to close bin file (us):");
     Serial.println(micro_timer);
   
-    EEPROM.put(EEPROM_FILE_ID_ADDR,current_file);
+    EEPROM.put(EEPROM_FILE_ID_ADDR,current_file); //Write current file name to EEPROM
 
     char size_char[11];
     sprintf(size_char,"%10d",file_size);
@@ -719,9 +716,9 @@ void close_binFile(){
     delete sha256Instance;
     memcpy(&filesize_hash_contents[10],&hash,32);
     
-    EEPROM.put(EEPROM_filesize_hash_ADDR, filesize_hash_contents);
+    EEPROM.put(EEPROM_filesize_hash_ADDR, filesize_hash_contents); //Write important metada of current file for backup in case of power loss
 
-    Serial.print("Total time after puting data in EEPROM (us):");
+    Serial.print("Total closing time with backup data already stored in EEPROM (us):");
     Serial.println(micro_timer);
     //digitalWrite(BLUE_LED,HIGH);
 
@@ -752,6 +749,7 @@ void close_binFile(){
 }
 
 void get_prev_metadata(){
+  //Getting previous file metadata from EEPROM
   EEPROM.get(EEPROM_metadata_ADDR,data_file_contents);
   EEPROM.get(EEPROM_filesize_hash_ADDR,filesize_hash_contents);
   memcpy(&data_file_contents[initial_metadata_size],",SIZE:",6);
@@ -760,67 +758,58 @@ void get_prev_metadata(){
   memcpy(&data_file_contents[initial_metadata_size+index],&filesize_hash_contents[0],10);
   index+=10;
   memcpy(&hash[0],&filesize_hash_contents[10],32);
+
+  //Perform hashing and signing to output metatdata textfile
   memcpy(&data_file_contents[initial_metadata_size+index],",BIN-SHA:",9);
   index+=9;
   for (int n = 0; n < sizeof(hash); n++){
     char hex_digit[3];
     sprintf(hex_digit,"%02X",hash[n]);
-    Serial.print(hex_digit);
     memcpy(&data_file_contents[initial_metadata_size+index],&hex_digit,2);
     index+=2;
   }
-    
   sha256Instance=new Sha256();
   sha256Instance->update(data_file_contents, strlen((const char*)data_file_contents));
   sha256Instance->final(hash);
   delete sha256Instance;
-  
-  Serial.print(",TXT-SHA:");
+
   memcpy(&data_file_contents[initial_metadata_size+index],",TXT-SHA:",9);
   index+=9;
   for (int n = 0; n < sizeof(hash); n++){
     char hex_digit[3];
     sprintf(hex_digit,"%02X",hash[n]);
-    Serial.print(hex_digit);
     memcpy(&data_file_contents[initial_metadata_size+index],&hex_digit,2);
     index+=2;
   }
   
   // Compute Signature here
   atecc.createSignature(hash);
-  Serial.print(",SIG:");
   memcpy(&data_file_contents[initial_metadata_size+index],",SIG:",5);
   index+=5;
   
   for (int n = 0; n < sizeof(atecc.signature); n++){
     char hex_digit[3];
     sprintf(hex_digit,"%02X",atecc.signature[n]);
-    Serial.print(hex_digit);
     memcpy(&data_file_contents[initial_metadata_size+index],&hex_digit,2);
     index+=2;
   }
   Serial.println();
 
   //Write the metadata file
-  
   if (!dataFile.open(data_file_name, O_RDWR | O_CREAT)) {
     YELLOW_LED_fast_blink_state == true;
-    Serial.println("Error opening ");
+    Serial.println("Error opening textfile to write previous log metadata");
     Serial.println(data_file_name);
   }
   else{
-
     dataFile.write(data_file_contents,sizeof(data_file_contents));
     dataFile.close();
-    
   }
   Serial.print("Previous File Metadata:");
   Serial.println(data_file_contents);
   
   memset(data_file_contents,0,sizeof(data_file_contents));
   data_file_index=0;
-  
-  
 }
 
 
@@ -1120,6 +1109,7 @@ void setup(void) {
   Serial.print("The filename prefix is ");
   Serial.println(file_name_prefix);
 
+  //Check if the previous log does not have metadata file, if so retrieve it from EEPROM
   sprintf(data_file_name,"%s%s%s.txt",brand_name,logger_name,current_file);
   sprintf(current_file_name,"%s%s%s.bin",brand_name,logger_name,current_file);
   if (!sd.exists(data_file_name) && sd.exists(current_file_name)){
@@ -1279,9 +1269,11 @@ void rx_message_routine(uint32_t RXCount){
 }
 
 void loop(void) {
+  //Monitor voltage, close file if drop below ~9V
+  //Raw voltage analog range is 0-149 for 0-12.2V
   if (voltage_timer >1000) {
   RAW_voltage = analogRead(RAW_input);
-  if (RAW_voltage<110) close_binFile();
+  if (RAW_voltage<110) close_binFile(); // analog of 110 ~ 9V raw voltage
   voltage_timer =0;
   }
   
