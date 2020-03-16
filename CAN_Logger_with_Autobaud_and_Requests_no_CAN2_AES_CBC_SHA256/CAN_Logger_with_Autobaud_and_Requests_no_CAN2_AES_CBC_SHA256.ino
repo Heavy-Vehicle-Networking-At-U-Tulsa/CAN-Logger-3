@@ -392,7 +392,7 @@ void check_buffer(){
     uint32_t start_micros = micros();
     
     // Write the beginning of each line in the 512 byte block
-    sprintf(prefix,"CAN2");
+    sprintf(prefix,"CAN3");
     memcpy(&data_buffer[0], &prefix, 4);
     current_position = 4;
     
@@ -704,7 +704,8 @@ void close_binFile(){
     Serial.println();
     Serial.print("Time to close bin file (us):");
     Serial.println(micro_timer);
-  
+    micro_timer=0;
+    
     EEPROM.put(EEPROM_FILE_ID_ADDR,current_file); //Write current file name to EEPROM
 
     char size_char[11];
@@ -722,6 +723,8 @@ void close_binFile(){
     Serial.println(micro_timer);
     //digitalWrite(BLUE_LED,HIGH);
 
+
+    micro_timer = 0;
     Serial.print(",SIZE:");
     memcpy(&data_file_contents[data_file_index],",SIZE:",6);
     data_file_index+=6;
@@ -1183,6 +1186,9 @@ void write_final_meta_data(){
   
   memset(data_file_contents,0,sizeof(data_file_contents));
   data_file_index=0;
+
+  //Serial.print("Total closing time to create metadata textfile (us):");
+  //Serial.println(micro_timer);
 }
 
 void write_initial_meta_data(){
