@@ -69,17 +69,22 @@ uint8_t server_public_key[64] = {
 0x19,0x23,0x9B,0x5A,0x85,0x3F,0x1B,0x07,0x9C,0x87,0x94,0xDF,0x1F,0xF5,0xA5,0x18,0xC5,0xB4,0x42,0x8C,0xBA,0x8B,0xB7,0x01,0x38,0x2E,0x8D,0x75,0xE2,0x82,0x4B,0xB0,0xD9,0x5A,0xF5,0xEE,0x75,0x72,0xBE,0xEC,0x5A,0x04,0xA5,0x20,0x45,0x1D,0xAF,0xE9,0x2B,0x33,0x6E,0x3A,0xEC,0x4A,0xA3,0x1F,0x8B,0x35,0xD7,0xA4,0x7A,0xD8,0x75,0x3D};
 
 // Use this buffer to keep track of the meta data for each file
-char data_file_contents[1024];
+char data_file_contents[569];
 uint16_t data_file_index = 0;
+char filesize_hash_contents[42];
 
 // define the number of rounds with AES encryption.
 #define AES_128_NROUNDS 10
 
 // EEPROM memory addresses for creating file names
 // The Address 0 and 1 are used for baud rates
-#define EEPROM_DEVICE_ID_ADDR  4  // 5, 6, 7=00
-#define EEPROM_FILE_ID_ADDR    8  // 9, 10, 11 ==00
-#define EEPROM_BRAND_NAME_ADDR 12 //13 and 14 ==00
+#define EEPROM_DEVICE_ID_ADDR     4  // 5, 6, 7=00
+#define EEPROM_FILE_ID_ADDR       8  // 9, 10, 11 ==00
+#define EEPROM_BRAND_NAME_ADDR    12 //13 and 14 ==00
+#define EEPROM_metadata_ADDR      16
+#define EEPROM_filesize_hash_ADDR 1040 //EEPROM_metadata_ADDR+sizeof(data_file_contents)
+
+#define initial_metadata_size  274
 
 #define CRC32_BUFFER_LOC       508
 
@@ -111,6 +116,10 @@ CAN_message_t rxmsg,txmsg;
 #define BUTTON_PIN 28
 #define POWER_PIN  21
 
+int RAW_voltage;
+int max_RAW_voltage = 0;
+int RAW_input = A22;
+
 // Use the button for multiple inputs: click, doubleclick, and long click.
 OneButton button(BUTTON_PIN, true);
 
@@ -123,6 +132,7 @@ char iv_string[16];
 // define a counter to reset after each second is counted.
 elapsedMicros microsecondsPerSecond;
 elapsedMicros micro_timer;
+elapsedMicros voltage_timer;
 // Get a uniqueName for the Logger File
 char logger_name[4];
 bool file_open;
@@ -678,10 +688,8 @@ void close_binFile(){
   micro_timer = 0;
   if (first_buffer_sent){
     if (hash_counter < 8){
-      for (int j = 0; j < (8 - hash_counter)*SHA_UPDATE_SIZE; j++){
-        before_closing_hash[j]=cipher_text[j+hash_counter*SHA_UPDATE_SIZE];
-      }
-      sha256Instance->update(before_closing_hash,((8-hash_counter)*SHA_UPDATE_SIZE));
+      memcpy(&before_closing_hash[0],&cipher_text[hash_counter*SHA_UPDATE_SIZE],BUFFER_SIZE-hash_counter*SHA_UPDATE_SIZE);
+      sha256Instance->update(before_closing_hash,BUFFER_SIZE-hash_counter*SHA_UPDATE_SIZE);
       //Serial.print("Time to hash the last buffer before closing buffer (us):");
       //Serial.println(micro_timer);
     }
@@ -694,19 +702,40 @@ void close_binFile(){
     aes_cbc_encrypt(data_buffer,cipher_text);//Encrypt 512-byte buffer 
     binFile.write(cipher_text, BUFFER_SIZE);
     uint32_t file_size = binFile.size();
+
     binFile.close();
     
+    Serial.print("Time to close bin file (us):");
+    Serial.println(micro_timer);
+  
+    EEPROM.put(EEPROM_FILE_ID_ADDR,current_file);
+
+    char size_char[11];
+    sprintf(size_char,"%10d",file_size);
+    memcpy(&filesize_hash_contents[0],&size_char,10);
+
+    sha256Instance->update(cipher_text,BUFFER_SIZE);
+    sha256Instance->final(hash);
+    delete sha256Instance;
+    memcpy(&filesize_hash_contents[10],&hash,32);
+    
+    EEPROM.put(EEPROM_filesize_hash_ADDR, filesize_hash_contents);
+
+    Serial.print("Total time after puting data in EEPROM (us):");
+    Serial.println(micro_timer);
+    //digitalWrite(BLUE_LED,HIGH);
+
     Serial.print(",SIZE:");
     memcpy(&data_file_contents[data_file_index],",SIZE:",6);
     data_file_index+=6;
-    char size_char[11];
-    sprintf(size_char,"%10d",file_size);
+    //char size_char[11];
+    //sprintf(size_char,"%10d",file_size);
     Serial.print(size_char);
     memcpy(&data_file_contents[data_file_index],&size_char,10);
     data_file_index+=10;
-   
+    
     write_final_meta_data();
-    EEPROM.put(EEPROM_FILE_ID_ADDR,current_file);
+
     delay(10);
     file_open = false;
     //Initialize the CAN channels with autobaud.
@@ -719,6 +748,78 @@ void close_binFile(){
     //Set first buffer sent back to false when closing file
     first_buffer_sent = false;
   }
+  
+}
+
+void get_prev_metadata(){
+  EEPROM.get(EEPROM_metadata_ADDR,data_file_contents);
+  EEPROM.get(EEPROM_filesize_hash_ADDR,filesize_hash_contents);
+  memcpy(&data_file_contents[initial_metadata_size],",SIZE:",6);
+  int index =0;
+  index+=6;
+  memcpy(&data_file_contents[initial_metadata_size+index],&filesize_hash_contents[0],10);
+  index+=10;
+  memcpy(&hash[0],&filesize_hash_contents[10],32);
+  memcpy(&data_file_contents[initial_metadata_size+index],",BIN-SHA:",9);
+  index+=9;
+  for (int n = 0; n < sizeof(hash); n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",hash[n]);
+    Serial.print(hex_digit);
+    memcpy(&data_file_contents[initial_metadata_size+index],&hex_digit,2);
+    index+=2;
+  }
+    
+  sha256Instance=new Sha256();
+  sha256Instance->update(data_file_contents, strlen((const char*)data_file_contents));
+  sha256Instance->final(hash);
+  delete sha256Instance;
+  
+  Serial.print(",TXT-SHA:");
+  memcpy(&data_file_contents[initial_metadata_size+index],",TXT-SHA:",9);
+  index+=9;
+  for (int n = 0; n < sizeof(hash); n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",hash[n]);
+    Serial.print(hex_digit);
+    memcpy(&data_file_contents[initial_metadata_size+index],&hex_digit,2);
+    index+=2;
+  }
+  
+  // Compute Signature here
+  atecc.createSignature(hash);
+  Serial.print(",SIG:");
+  memcpy(&data_file_contents[initial_metadata_size+index],",SIG:",5);
+  index+=5;
+  
+  for (int n = 0; n < sizeof(atecc.signature); n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",atecc.signature[n]);
+    Serial.print(hex_digit);
+    memcpy(&data_file_contents[initial_metadata_size+index],&hex_digit,2);
+    index+=2;
+  }
+  Serial.println();
+
+  //Write the metadata file
+  
+  if (!dataFile.open(data_file_name, O_RDWR | O_CREAT)) {
+    YELLOW_LED_fast_blink_state == true;
+    Serial.println("Error opening ");
+    Serial.println(data_file_name);
+  }
+  else{
+
+    dataFile.write(data_file_contents,sizeof(data_file_contents));
+    dataFile.close();
+    
+  }
+  Serial.print("Previous File Metadata:");
+  Serial.println(data_file_contents);
+  
+  memset(data_file_contents,0,sizeof(data_file_contents));
+  data_file_index=0;
+  
   
 }
 
@@ -1019,18 +1120,20 @@ void setup(void) {
   Serial.print("The filename prefix is ");
   Serial.println(file_name_prefix);
 
-  
+  sprintf(data_file_name,"%s%s%s.txt",brand_name,logger_name,current_file);
+  sprintf(current_file_name,"%s%s%s.bin",brand_name,logger_name,current_file);
+  if (!sd.exists(data_file_name) && sd.exists(current_file_name)){
+    get_prev_metadata();
+  }
   
   recording = true;
-  pinMode(POWER_PIN,INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(POWER_PIN), close_binFile, RISING);
+  //pinMode(POWER_PIN,INPUT_PULLUP);
+  //attachInterrupt(digitalPinToInterrupt(POWER_PIN), close_binFile, RISING);
 }
 
 
 void write_final_meta_data(){
-  sha256Instance->update(cipher_text,BUFFER_SIZE);
-  sha256Instance->final(hash);
-  delete sha256Instance;
+  
   Serial.print(",BIN-SHA:");
   memcpy(&data_file_contents[data_file_index],",BIN-SHA:",9);
   data_file_index+=9;
@@ -1082,7 +1185,7 @@ void write_final_meta_data(){
   }
   else{
 
-    dataFile.write(data_file_contents,1024);
+    dataFile.write(data_file_contents,sizeof(data_file_contents));
     dataFile.close();
     
   }
@@ -1146,6 +1249,8 @@ void write_initial_meta_data(){
     memcpy(&data_file_contents[data_file_index],&hex_digit,2);
     data_file_index+=2;
   }
+  
+  EEPROM.put(EEPROM_metadata_ADDR, data_file_contents);
 }
 
 void rx_message_routine(uint32_t RXCount){
@@ -1174,6 +1279,12 @@ void rx_message_routine(uint32_t RXCount){
 }
 
 void loop(void) {
+  if (voltage_timer >1000) {
+  RAW_voltage = analogRead(RAW_input);
+  if (RAW_voltage<110) close_binFile();
+  voltage_timer =0;
+  }
+  
   // monitor the CAN channels
   if (Can0.read(rxmsg)){
     RXCount0++;
