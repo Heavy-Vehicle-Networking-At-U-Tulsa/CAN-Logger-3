@@ -64,7 +64,7 @@ ATECCX08A atecc;
 FastCRC32 CRC32;
 
 // Use this buffer to keep track of the meta data for each file
-char data_file_contents[569]; //Fixed size of a regular metadata file
+char data_file_contents[1024]; //Size of MetaData file
 uint16_t data_file_index = 0;
 char filesize_hash_contents[42]; //10 bytes for filesize and 32 bytes for bin hash
 
@@ -108,8 +108,8 @@ CAN_message_t rxmsg,txmsg;
 #define SILENT_0   42
 #define SILENT_1   41
 #define SILENT_2   40
-//#define BUTTON_PIN 20 //version 3
-#define BUTTON_PIN 28 //version 3b
+#define BUTTON_PIN 20 //version 3
+//#define BUTTON_PIN 28 //version 3b
 #define POWER_PIN  21
 
 //RAW analog Voltage Monitoring
@@ -805,7 +805,9 @@ void get_prev_metadata(){
     Serial.println(data_file_name);
   }
   else{
-    dataFile.write(data_file_contents,sizeof(data_file_contents));
+    for (int i = 0; i<strlen((const char*)data_file_contents);i++){
+      dataFile.write(data_file_contents[i]);
+    } 
     dataFile.close();
   }
   Serial.print("Previous File Metadata:");
@@ -1178,7 +1180,9 @@ void write_final_meta_data(){
   }
   else{
 
-    dataFile.write(data_file_contents,sizeof(data_file_contents));
+    for (int i = 0; i<strlen((const char*)data_file_contents);i++){
+      dataFile.write(data_file_contents[i]);
+    } 
     dataFile.close();
     
   }
