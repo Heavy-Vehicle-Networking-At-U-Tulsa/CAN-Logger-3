@@ -59,7 +59,7 @@ teensy_public_key = serialization.load_pem_public_key(serialized_public_teensy,b
 
 #Derive shared secret
 shared_secret = server_private_key.exchange(ec.ECDH(),teensy_public_key)
-#print("Shared secret:",shared_secret.hex())
+print("Shared secret:",shared_secret.hex())
 
 
 

@@ -18,8 +18,6 @@ void setup() {
     while (1); // stall out forever
   }
 
-  printInfo(); // see function below for library calls and data handling
-
   Serial.println("Would you like to configure your Cryptographic Co-processor ? (y/n)");
   Serial.println("***Note, this is PERMANENT and cannot be changed later***");
   Serial.println("***If you do not want to do this, type an 'n' or unplug now.***");
@@ -46,19 +44,8 @@ void setup() {
     Serial.println("Configuration done.");
     Serial.println();
 
-    Serial.println("Load server public key");
-    //Random 64-byte server public key
-    uint8_t server_public_key[64] = {0X44,0X45,0X7d,0X9e,0Xa5,0X49,0X19,0Xd4,0X48,0X56,0X3a,0X75,0X3c,0X61,0Xac,
-                              0Xc9,0X08,0X14,0X91,0X62,0Xc0,0Xe1,0Xe4,0Xaf,0X15,0Xdb,0Xca,0X04,0X92,0X9f,
-                              0X71,0X51,0X20,0X1b,0Xb8,0Xe3,0X29,0Xe1,0X16,0Xd2,0X68,0Xf4,0X93,0X11,0Xac,
-                              0X8f,0Xd2,0X64,0X11,0X24,0X93,0Xba,0Xa1,0X48,0X1d,0Xd9,0X87,0X39,0X8b,0Xc7,
-                              0Xaf,0Xf7,0X49,0X8a};
-    Serial.print("Load Public Key: \t");
-    if (atecc.loadPublicKey(server_public_key,false) == true) Serial.println("Success!");
-    else Serial.println("Failure.");
-
-    Serial.print("Lock data and OTP zone: \t");
-    if (atecc.lockDataAndOTP() == true) Serial.println("Success!");
+    load_public_key();
+    lock_data();
   }
   else
   {
@@ -72,9 +59,40 @@ void loop()
 {
   // do nothing.
 }
+void load_public_key(){
+  Serial.println("Load server public key");
+    //Random 64-byte server public key
+    uint8_t server_public_key[64] = {0X44,0X45,0X7d,0X9e,0Xa5,0X49,0X19,0Xd4,0X48,0X56,0X3a,0X75,0X3c,0X61,0Xac,
+                              0Xc9,0X08,0X14,0X91,0X62,0Xc0,0Xe1,0Xe4,0Xaf,0X15,0Xdb,0Xca,0X04,0X92,0X9f,
+                              0X71,0X51,0X20,0X1b,0Xb8,0Xe3,0X29,0Xe1,0X16,0Xd2,0X68,0Xf4,0X93,0X11,0Xac,
+                              0X8f,0Xd2,0X64,0X11,0X24,0X93,0Xba,0Xa1,0X48,0X1d,0Xd9,0X87,0X39,0X8b,0Xc7,
+                              0Xaf,0Xf7,0X49,0X8a};
+    Serial.print("Load Public Key: \t");
+    if (atecc.loadPublicKey(server_public_key,false) == true) Serial.println("Success!");
+    else Serial.println("Failure.");
+
+    //Print loaded server public key
+  atecc.readPublicKey(false);//Read the stored server public key
+  Serial.print("Server Public Key: ");
+  for (int j =0;j<sizeof(atecc.storedPublicKey);j++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X", atecc.storedPublicKey[j]);
+    Serial.print(hex_digit);
+    }
+  Serial.println();
+}
+
+void lock_data(){
+  Serial.print("Lock data and OTP zone: \t");
+    if (atecc.lockDataAndOTP() == true) Serial.println("Success!");
+    else {
+      Serial.println("Failed!");
+    }
+}
 
 void printInfo()
 {
+  
   // Read all 128 bytes of Configuration Zone
   // These will be stored in an array within the instance named: atecc.configZone[128]
   atecc.readConfigZone(true); // Debug argument false (OFF)
