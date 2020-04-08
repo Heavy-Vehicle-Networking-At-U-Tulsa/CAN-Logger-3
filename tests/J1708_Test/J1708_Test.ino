@@ -1,5 +1,7 @@
-
 #define CAN_switch 2
+elapsedMillis timer;
+uint8_t message[4] ={0x00,0x00,0x00,0x00};
+unsigned char sBuffer[100];
 
 void setup () {
   pinMode(CAN_switch,OUTPUT);
@@ -7,11 +9,8 @@ void setup () {
   Serial2.begin(9600);
   
 }
-
-
 void loop() {
-  unsigned char sBuffer[100];
-
+   
    int nBytes = Serial2.available();
    if(nBytes > 0)
    {
@@ -23,6 +22,15 @@ void loop() {
        }
        Serial.println("");
    } 
+
+   if (timer>1000) {
+    Serial2.write(message,4);
+    timer = 0;
+    message[0] +=1;
+    message[1] +=1;
+    message[2] +=1;
+    message[3] +=1;
+   }
 
 }
 

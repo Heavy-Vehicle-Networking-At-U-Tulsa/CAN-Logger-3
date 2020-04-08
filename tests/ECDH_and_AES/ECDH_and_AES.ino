@@ -64,14 +64,12 @@ void setup() {
     if (atecc.lockDataAndOTP() == true) Serial.println("Success!");
     else Serial.println("Failure.");
 
-    Serial.print("Lock Slot 0: \t");
-    if (atecc.lockDataSlot0() == true) Serial.println("Success!");
-    else Serial.println("Failure.");
+  //Read stored public key for ECDH
   atecc.readPublicKey(true);
-  //Let's create a share secret and load in tempkey!
+  //Calculate the share secret and load in tempkey!
   atecc.ECDH(atecc.storedPublicKey, ECDH_OUTPUT_IN_TEMPKEY,0x0000);
 
-  //Let's encrypt data
+  //Encrypt data
   atecc.AES_ECB_encrypt(message);
 }
 

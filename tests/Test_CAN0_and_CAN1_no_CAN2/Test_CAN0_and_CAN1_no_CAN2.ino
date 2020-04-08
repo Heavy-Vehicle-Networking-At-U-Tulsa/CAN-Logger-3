@@ -177,7 +177,7 @@ void loop() {
     txmsg1.buf[7] = (TXCount1 & 0x000000FF);
 
     //Write the message on CAN channel 1
-    //Can1.write(txmsg1);
+    Can1.write(txmsg1);
     TXCount1++;
     //Toggle the LED
     YELLOW_LED_state = !YELLOW_LED_state;

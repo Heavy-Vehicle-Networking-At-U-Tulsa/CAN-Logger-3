@@ -43,9 +43,22 @@ void setup() {
 
     Serial.println("Configuration done.");
     Serial.println();
-
-    load_public_key();
-    lock_data();
+    
+    //Lock data slot 0
+    atecc.lockDataSlot(0);
+    //Print ATECC public key
+    atecc.generatePublicKey(0,false); //compute public key from slot 0 private key
+    Serial.print("ATECC Public Key: \n");
+    for (int n = 0; n < sizeof(atecc.publicKey64Bytes);n++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",atecc.publicKey64Bytes[n]);
+    Serial.print("0X");
+    Serial.print(hex_digit);
+    Serial.print(",");
+    if ((n+1)%16==0) Serial.println();//New line every 16 bytes
+    }
+    //load_public_key();
+    //lock_data();
   }
   else
   {
@@ -73,7 +86,7 @@ void load_public_key(){
 
     //Print loaded server public key
   atecc.readPublicKey(false);//Read the stored server public key
-  Serial.print("Server Public Key: ");
+  Serial.print("Server Public Key: \n");
   for (int j =0;j<sizeof(atecc.storedPublicKey);j++){
     char hex_digit[3];
     sprintf(hex_digit,"%02X", atecc.storedPublicKey[j]);
