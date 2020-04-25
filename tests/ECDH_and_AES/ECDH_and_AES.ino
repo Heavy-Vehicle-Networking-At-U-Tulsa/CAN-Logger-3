@@ -31,7 +31,7 @@ uint8_t message[16] = {
   0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F
 };
 
-uint8_t server_public_key[64] ={0X89,0X5e,0Xdf,0Xf7,0Xc5,0Xc2,0X96,0Xeb,0X97,0Xa1,0X71,0X98,0Xc2,0X53,0Xc1,0X05,0Xf4,0Xe3,0Xda,0Xf6,0X29,0X64,0X71,0Xb2,0X15,0Xac,0X52,0X0e,0X0a,0X11,0Xce,0X54,0Xa3,0Xec,0X91,0X0b,0Xa4,0Xe8,0X48,0X29,0Xec,0X69,0Xbe,0Xca,0Xc9,0Xcf,0Xc8,0Xc4,0X32,0X8c,0Xec,0X5e,0X93,0X03,0X93,0Xac,0X10,0X5b,0X66,0X30,0X49,0Xeb,0Xe4,0X87};
+uint8_t server_public_key[64] ={0X5d,0X9c,0Xc4,0Xcc,0Xee,0X18,0Xf0,0X38,0Xaf,0X35,0X28,0Xfa,0Xbb,0Xe8,0Xf2,0Xb1,0Xa7,0Xee,0Xe4,0Xd1,0X43,0X1c,0Xd4,0X4c,0Xa0,0X77,0Xa5,0X16,0Xf7,0X8e,0X35,0X90,0X6e,0Xb4,0Xc6,0X9e,0X3c,0X06,0Xb3,0Xbd,0Xc6,0Xa4,0X6a,0X2d,0Xea,0X32,0Xa2,0X3b,0X75,0Xb1,0Xe7,0X6a,0X75,0Xc7,0X9f,0X2b,0X80,0X19,0Xb7,0Xb9,0Xfe,0X38,0Xbd,0Xba};
 
 
 void setup() {
@@ -58,19 +58,22 @@ void setup() {
   }
 
     Serial.print("Load Server Public Key: \t");
-    if (atecc.loadPublicKey(server_public_key) == false) Serial.println("Failure.");
+    if (atecc.loadPublicKey(server_public_key) == true) Serial.println("Success!");
+    else Serial.println("Failure or Data has been locked.");
 
     Serial.print("Lock Data-OTP: \t");
     if (atecc.lockDataAndOTP() == true) Serial.println("Success!");
-    else Serial.println("Failure.");
+    else Serial.println("Failure or Data has been locked.");
 
+  Serial.println();
   //Read stored public key for ECDH
   atecc.readPublicKey(true);
+  Serial.println();
   //Calculate the share secret and load in tempkey!
-  atecc.ECDH(atecc.storedPublicKey, ECDH_OUTPUT_IN_TEMPKEY,0x0000);
+  atecc.ECDH(atecc.storedPublicKey, ECDH_OUTPUT_IN_TEMPKEY ,0x0000, false);
 
   //Encrypt data
-  atecc.AES_ECB_encrypt(message);
+  atecc.AES_ECB_encrypt(message,0xFFFF,true);
 }
 
 void loop()
