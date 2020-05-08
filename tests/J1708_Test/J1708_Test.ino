@@ -5,7 +5,7 @@ unsigned char sBuffer[100];
 
 void setup () {
   pinMode(CAN_switch,OUTPUT);
-  digitalWrite(CAN_switch, LOW);
+  digitalWrite(CAN_switch, HIGH);
   Serial2.begin(9600);
   
 }

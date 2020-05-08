@@ -43,7 +43,7 @@ ACAN2517 can (MCP2517_CS, SPI, MCP2517_INT) ;
 void setup () {
   pinMode(CAN_switch,OUTPUT);
   pinMode(silent2,OUTPUT);
-  digitalWrite(CAN_switch, HIGH);
+  digitalWrite(CAN_switch, LOW);
   digitalWrite(silent2,LOW);
 //--- Switch on builtin led
   pinMode (LED_BUILTIN, OUTPUT) ;

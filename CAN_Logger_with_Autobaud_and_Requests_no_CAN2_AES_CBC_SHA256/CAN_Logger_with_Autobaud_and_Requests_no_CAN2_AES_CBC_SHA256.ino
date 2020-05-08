@@ -108,8 +108,8 @@ CAN_message_t rxmsg,txmsg;
 #define SILENT_0   42
 #define SILENT_1   41
 #define SILENT_2   40
-#define BUTTON_PIN 20 //version 3
-//#define BUTTON_PIN 28 //version 3b
+//#define BUTTON_PIN 20 //version 3
+#define BUTTON_PIN 28 //version 3b
 #define POWER_PIN  21
 
 //RAW analog Voltage Monitoring
