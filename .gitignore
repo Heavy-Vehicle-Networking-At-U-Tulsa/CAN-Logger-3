@@ -6,3 +6,4 @@ clientApp/password.txt
 *.pyc
 
 *.bin
+*.pdf_tex
