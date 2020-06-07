@@ -24,9 +24,12 @@
 
 #include <SparkFun_ATECCX08a_Arduino_Library.h> //Click here to get the library: http://librarymanager/All#SparkFun_ATECCX08a
 #include <i2c_t3.h>
+#include <sha256.h>
 
 ATECCX08A atecc;
 
+byte hash_message[32];
+Sha256* sha256Instance;
 // array to hold our 32 bytes of message. Note, it must be 32 bytes, no more or less.
 uint8_t message[32] = {
   0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
@@ -55,18 +58,37 @@ void setup() {
     Serial.print("Device not configured. Please use the configuration sketch.");
     while (1); // stall out forever.
   }
-
+  atecc.generatePublicKey(false);
+  printPublicKey();
   printMessage(); // nice debug to see what you're signing. see function below
 
-  //Let's create a digital signature!
-  atecc.createSignature(message); // by default, this uses the private key securely stored and locked in slot 0.
+  sha256Instance = new Sha256();
+  sha256Instance->update(message,sizeof(message));
+  sha256Instance->final(hash_message);
+  //for(int i = 0;i<32;i++) Serial.print(hash_message[i],HEX);
+  //Serial.println();
 
+  //Let's create a digital signature!
+  atecc.createSignature(hash_message,0,true); // by default, this uses the private key securely stored and locked in slot 0.
   printSignature();
 }
 
 void loop()
 {
   // do nothing.
+}
+void printPublicKey()
+{
+  Serial.println("uint8_t public_key[64] = {");
+  for (int i = 0; i < sizeof(atecc.publicKey64Bytes) ; i++)
+  {
+    Serial.print("0x");
+    if ((atecc.publicKey64Bytes[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
+    Serial.print(atecc.publicKey64Bytes[i], HEX);
+    if (i != 31) Serial.print(", ");
+    if ((31 - i) % 16 == 0) Serial.println();
+  }
+  Serial.println("};");
 }
 
 void printMessage()
