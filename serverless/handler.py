@@ -74,8 +74,18 @@ def upload(event, context):
         item = table.get_item(
             Key = {'id': meta_data_dict["serial_num"],}
             ).get('Item')
-    except:
+    except Exception as e:
+        print(e)
         return response(400, "Serial number not found.")
+
+    str_time = get_timestamp(time.time())
+    table.update_item(
+        Key = {'id': meta_data_dict["serial_num"],},
+        UpdateExpression = "SET upload_time= :var1,upload_ip= :var2",
+            ExpressionAttributeValues = {
+                ':var1': str_time,
+                ':var2': requester_data["identity"]["sourceIp"]
+        },)
 
     device_public_key_server = base64.b64decode(item['device_public_key']).decode('ascii')
     device_public_key_device = meta_data[7].split(":")[1]

@@ -1,6 +1,6 @@
 import json
 import base64
-import time
+import datetime
 import hashlib
 
 from cryptography.fernet import Fernet
@@ -38,6 +38,7 @@ def provision(event,context):
         device_pub_key_bytes = bytearray.fromhex(pub_key.decode('ascii'))
         serial_number = base64.b64decode(body['serial_number'])
         assert len(serial_number) == 18
+        assert len(body['device_label']) == 5
     except:
         return response(400, "Parameters are in the incorrect format.")
 
@@ -116,6 +117,7 @@ def provision(event,context):
 
     can_logger_dict = {
         'id': serial_number.decode("utf-8"), #72 bit unique id from the ATECC608.
+        'device_label': body['device_label'],
         'device_public_key': body['device_public_key'],
         'device_public_key_prov_hash':device_public_key_hash.hex().upper()[:10],
         'server_public_key_prov_hash':server_public_key_hash.hex().upper()[:10],
@@ -123,6 +125,7 @@ def provision(event,context):
         'sourceIp':ip_address,
         'encrypted_data_key': base64.b64encode(data_key_encrypted).decode('utf-8'),
         'encrypted_server_pem_key': base64.b64encode(server_pem_key_encrypted).decode('utf-8'),
+        'provision_time': datetime.datetime.now().isoformat().split('.')[0]
         #'password_for_testing': rand_pass.decode('ascii') #Will delete after testing
 
         }

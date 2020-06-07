@@ -30,7 +30,7 @@ provider:
   stage: dev
   region: us-east-2
   apiKeys:
-    - CANLoggerAPIKey 
+    - CANLoggerAPIKey
   usagePlan:
     quota:
       limit: 500
@@ -118,6 +118,25 @@ functions:
           path: list
           method: get
           private: false
+          cors:
+            origin: '*'
+            headers: ${self:custom.allowed-headers}
+            allowCredentials: true
+          authorizer:
+            type: COGNITO_USER_POOLS
+            authorizerId:
+              Ref: ApiGatewayAuthorizer
+  devices:
+    handler: get_devices.get_devices  
+    events:
+      - http:
+          path: devices
+          method: get
+          private: false
+          cors:
+            origin: '*'
+            headers: ${self:custom.allowed-headers}
+            allowCredentials: true
           authorizer:
             type: COGNITO_USER_POOLS
             authorizerId:
@@ -242,3 +261,18 @@ custom:
   pythonRequirements:
     zip: false
     slim: false
+  allowed-headers:
+    - Content-Type
+    - X-Amz-Date
+    - Authorization
+    - X-Api-Key
+    - Vary
+    - X-Amz-Security-Token
+    - Origin
+    - x-requested-with
+    - Access-Control-Allow-Origin
+    - Access-Control-Allow-Headers
+    - Access-Control-Allow-Methods
+    - Access-Control-Request-Headers
+    - Access-Control-Request-Method
+    - Access-Control-Expose-Headers

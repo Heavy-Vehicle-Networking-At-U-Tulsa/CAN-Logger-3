@@ -1,4 +1,6 @@
 # !/bin/env/python
+
+
 from PyQt5.QtWidgets import (QMainWindow,
                              QWidget,
                              QTreeView,
@@ -56,6 +58,8 @@ import traceback
 import logging
 import csv
 
+
+
 sys.path.insert(1, '../serverless')
 from utils import verify_meta_data_text, decode_jwt
 
@@ -72,7 +76,9 @@ logger.addHandler(logging.StreamHandler(sys.stdout))
 logger.setLevel(logging.DEBUG)
 
 AWS_REGION = "us-east-2"
+AWS_REGION = "us-east-1"
 API_ENDPOINT = r"https://47tzdaoo6k.execute-api.us-east-2.amazonaws.com/dev/"
+API_ENDPOINT = r"http://localhost:4567/restapis/84qx5j0eqq/local/_user_request_/"
 APP_CLIENT_ID = "58tl1drhvqtjkmhs69inh7l1t3"
 USER_POOL_ID = "us-east-2_fiNazAdBU"
 IDENTITY_TOKEN_NAME = "identity_token.json"
@@ -106,7 +112,7 @@ class CANLogger(QMainWindow):
         super(CANLogger, self).__init__()
         self.home_directory = os.getcwd()
         try:
-            self.API_KEY = os.environ["CANLogger_API_KEY"]
+            self.API_KEY = 'OpOWJP81fu3K2JJEpHXqT1IKVgUgKgtM6GimIzGN' #os.environ["CANLogger_API_KEY"]
         except:
             logger.critical(traceback.format_exc())
             QMessageBox.warning(self,"Missing API Key","Please contact Jeremy Daily at Colorado State University to obtain an API key for this application.")

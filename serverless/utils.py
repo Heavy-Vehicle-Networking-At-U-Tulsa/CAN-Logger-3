@@ -2,6 +2,7 @@ import json
 import time
 import sys
 import logging
+#TODO Change this to cryptography.io
 from ecdsa import VerifyingKey, BadSignatureError, NIST256p
 import hashlib
 import traceback
@@ -92,7 +93,7 @@ def decode_jwt(token):
 
 def get_timestamp(seconds):
     try:
-        return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(seconds))
+        return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(seconds))
     except ValueError:
         return "Not Available"
 
@@ -110,7 +111,10 @@ def lambdaResponse(statusCode,
         body = json.dumps(body)
     # Make sure the content type is json
     header = headers
-    header["Content-Type"] = "application/json"  
+    header["Content-Type"] = "application/json" 
+    header['Access-Control-Allow-Headers'] = 'Content-Type'
+    header['Access-Control-Allow-Origin'] = '*'
+    header['Access-Control-Allow-Methods'] = 'OPTIONS,POST,GET'
     response = {
         "isBase64Encoded": isBase64Encoded,
         "statusCode": statusCode,
