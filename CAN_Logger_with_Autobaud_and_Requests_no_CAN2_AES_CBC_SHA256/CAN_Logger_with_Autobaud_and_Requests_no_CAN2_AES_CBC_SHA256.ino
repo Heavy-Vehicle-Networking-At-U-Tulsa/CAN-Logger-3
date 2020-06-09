@@ -955,9 +955,6 @@ void setup(void) {
   
   Serial.println("Starting CAN logger.");
 
-  // Derive ECDH and load into TEMPKEY
-  atecc.readPublicKey(false);
-  atecc.ECDH(atecc.storedPublicKey, ECDH_OUTPUT_IN_TEMPKEY,0x0000);
   
   first_buffer_sent = false;
  
@@ -1021,9 +1018,20 @@ void setup(void) {
   mmcau_aes_set_key(aeskey, 128, keysched);//Set key
   memcpy(out,init_vector,16); //Load IV
 
+  // Derive ECDH and load into TEMPKEY
+  atecc.readPublicKey(false);
+  Serial.println("Stored Public Key: ");
+  for (int i = 0; i<sizeof(atecc.storedPublicKey); i++){
+    char hex_digit[3];
+    sprintf(hex_digit,"%02X",atecc.storedPublicKey[i]);
+    Serial.print(hex_digit);
+  }
+  Serial.println();
+  atecc.ECDH(atecc.storedPublicKey, ECDH_OUTPUT_IN_TEMPKEY,0x0000);
+  
   // Add the ATECC Encryption Scheme here and update the value of the encrypted_aeskey
   Serial.print("Encrypted AES Session Key: ");
-  atecc.AES_ECB_encrypt(aeskey);
+  atecc.AES_ECB_encrypt(aeskey,0xFFFF,false);
   memcpy(&encrypted_aeskey[0],&atecc.AES_buffer[0],16);
   for (int i = 0; i<16; i++){
     char hex_digit[3];
@@ -1093,9 +1101,9 @@ void setup(void) {
 
   Serial.print("Reading from EEPROM... ");
   EEPROM.get(EEPROM_DEVICE_ID_ADDR,logger_name);
-  if (!isFileNameValid(logger_name)) strcpy(logger_name, "2__"); 
+  if (!isFileNameValid(logger_name)) strcpy(logger_name, "__"); 
   // Uncomment the following 2 lines to reset name
-  //strcpy(logger_name, "2AA");
+  //strcpy(logger_name, "U04");
   //EEPROM.put(EEPROM_DEVICE_ID_ADDR,logger_name);
   
   EEPROM.get(EEPROM_FILE_ID_ADDR,current_file);
@@ -1103,9 +1111,9 @@ void setup(void) {
   // reset the counter with the count command
   
   EEPROM.get(EEPROM_BRAND_NAME_ADDR,brand_name);
-  if (!isFileNameValid(brand_name)) strcpy(brand_name, "TU"); 
+  if (!isFileNameValid(brand_name)) strcpy(brand_name, "CSU"); 
   // Uncomment the following 2 lines to reset the brand name
-  //strcpy(brand_name, "TU");
+  //strcpy(brand_name, "CS");
   //EEPROM.put(EEPROM_BRAND_NAME_ADDR,brand_name);
 
   Serial.println("Done.");

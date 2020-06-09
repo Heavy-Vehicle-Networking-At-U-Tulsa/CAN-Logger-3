@@ -68,7 +68,6 @@ void setup() {
 }
 
 void send_data(){
-    
   atecc.readConfigZone(false); // produces a serial number
   atecc.generatePublicKey(0,false); //compute public key from slot 0 private key
   

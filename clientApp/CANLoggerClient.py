@@ -78,7 +78,6 @@ logger.setLevel(logging.DEBUG)
 AWS_REGION = "us-east-2"
 AWS_REGION = "us-east-1"
 API_ENDPOINT = r"https://47tzdaoo6k.execute-api.us-east-2.amazonaws.com/dev/"
-API_ENDPOINT = r"http://localhost:4567/restapis/84qx5j0eqq/local/_user_request_/"
 APP_CLIENT_ID = "58tl1drhvqtjkmhs69inh7l1t3"
 USER_POOL_ID = "us-east-2_fiNazAdBU"
 IDENTITY_TOKEN_NAME = "identity_token.json"
@@ -97,6 +96,7 @@ class SerialListener(threading.Thread):
         while self.runSignal:
             i = max(1, min(2048, self.ser.in_waiting))
             data = self.ser.read(i)
+            print(data)
             self.rx_queue.put(data) 
             # if len(data) > 1:
             #     print(data)
@@ -112,7 +112,7 @@ class CANLogger(QMainWindow):
         super(CANLogger, self).__init__()
         self.home_directory = os.getcwd()
         try:
-            self.API_KEY = 'OpOWJP81fu3K2JJEpHXqT1IKVgUgKgtM6GimIzGN' #os.environ["CANLogger_API_KEY"]
+            self.API_KEY = os.environ["CANLogger_API_KEY"]
         except:
             logger.critical(traceback.format_exc())
             QMessageBox.warning(self,"Missing API Key","Please contact Jeremy Daily at Colorado State University to obtain an API key for this application.")
@@ -266,12 +266,10 @@ class CANLogger(QMainWindow):
             self.login()
     
     def provision(self):
-        buttonReply = QMessageBox.question(self,"Provision Process","Are you performing provisioning and does your device has the provisioning firmware?",QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        buttonReply = QMessageBox.question(self,"Provision Process",
+            "Are you performing provisioning and does your device has the provisioning firmware?\nPlease unplug and replug the device.",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
         if buttonReply == QMessageBox.Yes:
-            url = API_ENDPOINT + "provision"
-            header = {}
-            header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
-            header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
             self.list_file = False
             while not self.connected:
                 if self.connect_logger_by_usb() is None:
@@ -280,30 +278,47 @@ class CANLogger(QMainWindow):
             # empty the queue
             while not self.serial_queue.empty():
                 self.serial_queue.get_nowait()
-            time.sleep(0.5)
+            time.sleep(0.05)
             self.ser.write(b'KEY\n')
             time.sleep(0.5)
             
+            start_time = time.time()
             ret_val = b''
-            while not self.serial_queue.empty():
+            while len(ret_val) < (128+18+1): # Key Length, Serial Number, newline
+                if (time.time() - start_time) > 1:
+                    break
                 character = self.serial_queue.get()
                 ret_val += character
+                print(ret_val)
             
             response=ret_val.split(b'\n')
             logger.debug(response)
+            try:
+                serial_number = response[0]
+                device_public_key = response[1]
+            except IndexError:
+                QMessageBox.warning(self,"Key Error","There was an issue getting the Key over serial.")
+                return
 
-            serial_number = response[0]
-            device_public_key = response[1]
-
-            
+            device_label, ok = QInputDialog.getText(self, 'Device Label',
+                                        'Enter 5 characters for the device label:',
+                                        QLineEdit.Normal,
+                                        "CSUXX"
+                                        )
+            if not ok:
+                return
             try:
                 data = {'serial_number': base64.b64encode(serial_number).decode("ascii"),
+                        'device_label': device_label[:5],
                         'device_public_key': base64.b64encode(device_public_key).decode("ascii"),
                        }
             except TypeError:
                 logger.warning("Must have data to get key.")
                 return
-
+            url = API_ENDPOINT + "provision"
+            header = {}
+            header["x-api-key"] = self.API_KEY #without this header, the API Gateway will return a 403: Forbidden message.
+            header["Authorization"] = self.identity_token #without this header, the API Gateway will return a 401: Unauthorized message
             try:
                 r = requests.post(url, json=data, headers=header)
             except requests.exceptions.ConnectionError:
@@ -592,8 +607,8 @@ class CANLogger(QMainWindow):
             pass
 
         try:
-            self.ser = serial.Serial(self.comport)
-            self.ser.set_buffer_size(rx_size = 2147483647, tx_size = 2000)
+            self.ser = serial.Serial(self.comport, timeout=0.1)
+            self.ser.set_buffer_size(rx_size = 2048, tx_size = 2000)
             self.connected = True
             logger.debug("Connected to Serial Port.")
             self.serial_queue = queue.Queue()
@@ -817,9 +832,9 @@ class CANLogger(QMainWindow):
                 ret_val += character    
             bytes_in_file = ret_val[:latest_file_size]
             if verify_meta_data_text(bytes_in_file):
-                self.meta_data = bytes_in_file.decode('ascii').split(",")
+                self.meta_data = bytes_in_file.decode('ascii','replace').split(",")
                 self.meta_data.append("Verified")
-                self.meta_data.append(base64.b64encode(bytes_in_file).decode('ascii'))
+                self.meta_data.append(base64.b64encode(bytes_in_file).decode('ascii','replace'))
                 logger.debug("file meta_data has {} elements:".format(len(self.meta_data))) 
                 logger.debug("{}".format(self.meta_data))
                 # Insert the time first, because it has a bunch of colons 
