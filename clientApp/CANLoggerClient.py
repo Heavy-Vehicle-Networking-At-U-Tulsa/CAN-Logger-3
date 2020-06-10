@@ -296,6 +296,20 @@ class CANLogger(QMainWindow):
             try:
                 serial_number = response[0]
                 device_public_key = response[1]
+                if(len(response[len(response)-2]) == 18):
+                    serial_number = response[len(response)-2]
+                else:
+                    QMessageBox.warning(
+                        self, "Key Error", "There was an issue getting the Key over serial.")
+                    return
+                if(len(response[len(response)-1]) == 128):
+                    device_public_key = response[len(response)-1]
+                else:
+                    QMessageBox.warning(
+                        self, "Key Error", "There was an issue getting the Key over serial.")
+                    return
+                print("Serial ID", serial_number)
+                print(device_public_key)
             except IndexError:
                 QMessageBox.warning(self,"Key Error","There was an issue getting the Key over serial.")
                 return
