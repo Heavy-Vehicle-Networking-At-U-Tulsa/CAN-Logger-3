@@ -1,15 +1,36 @@
+/*
+ * SHA-256 Test
+ * 
+ * Arduino Sketch for testing cryptographic function SHA-256 against NIST examples 
+ * using teensy 3.6
+ * 
+ * Test vectors are from NIST: https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHA256.pdf
+ * Other test vectors are used from: https://github.com/rweather/arduinolibs/tree/master/libraries/Crypto/examples/TestSHA256
+ * 
+ * Written by Duy Van
+ * Colorado State University
+ * Department of Systems Engineering
+ * 
+ * 31 Jan 2020
+ * 
+ */
+
 #include <sha256.h>
+#define SHA256_BLOCK_SIZE 32
+Sha256* sha256Instance;
 
 void setup() {
-  Sha256* sha256Instance;
-  BYTE hash[SHA256_BLOCK_SIZE];
-  char texthash[2*SHA256_BLOCK_SIZE+1];
-
   Serial.begin(115200);
-  delay(50);
+  delay(150);
 
   Serial.println("Test vector for SHA256");
   Serial.println("");
+  
+  
+  BYTE hash[SHA256_BLOCK_SIZE];
+  char texthash[2*SHA256_BLOCK_SIZE+1];
+
+
   
   BYTE text1[]="";
   const char hash_text1[] = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
