@@ -76,7 +76,6 @@ logger.addHandler(logging.StreamHandler(sys.stdout))
 logger.setLevel(logging.DEBUG)
 
 AWS_REGION = "us-east-2"
-AWS_REGION = "us-east-1"
 API_ENDPOINT = r"https://47tzdaoo6k.execute-api.us-east-2.amazonaws.com/dev/"
 APP_CLIENT_ID = "58tl1drhvqtjkmhs69inh7l1t3"
 USER_POOL_ID = "us-east-2_fiNazAdBU"
@@ -158,6 +157,13 @@ class CANLogger(QMainWindow):
         connect_logger.triggered.connect(self.connect_logger_by_usb)
         logger_menu.addAction(connect_logger)
         logger_toolbar.addAction(connect_logger)
+
+        save_file = QAction(QIcon(r'icons/save_icon.png'), '&Save File', self)
+        save_file.setShortcut('Ctrl+S')
+        save_file.setStatusTip('Save Local Copy of the File.')
+        save_file.triggered.connect(self.save_file)
+        logger_menu.addAction(save_file)
+        logger_toolbar.addAction(save_file)
 
         new_file = QAction(QIcon(r'icons/upload_icon.png'), '&Upload File', self)
         new_file.setShortcut('Ctrl+U')
@@ -265,6 +271,8 @@ class CANLogger(QMainWindow):
         if not self.load_tokens():
             self.login()
     
+
+
     def provision(self):
         buttonReply = QMessageBox.question(self,"Provision Process",
             "Are you performing provisioning and does your device has the provisioning firmware?\nPlease unplug and replug the device.",
@@ -1005,7 +1013,16 @@ class CANLogger(QMainWindow):
             self.identity_token = None
             return False
 
-   
+    def save_file(self):
+        if self.connection_type != 'USB':
+            QMessageBox.warning(self,"Connection Type","Please connect a device and select a file.")
+            return
+
+        if self.meta_data_dict is None:
+            QMessageBox.warning(self,"Select File","Please connect a device and select a file.")
+            return   
+        self.download_file()
+        
 
     def upload_file(self):
         if self.connection_type != 'USB':
@@ -1276,7 +1293,10 @@ class CANLogger(QMainWindow):
         for k,v in self.server_meta_data_dict.items():
             logger.debug("{}: {}".format(k,v))
 
-        self.user_note = json.loads(self.server_file_table.item(row,15).text().replace("\'","\""))
+        try:
+            self.user_note = json.loads(self.server_file_table.item(row,15).text().replace("\'","\""))
+        except:
+            logger.debug(traceback.format_exc())
         self.access_list = self.server_file_table.item(row,8).text()[1:-1]
         self.download_list = self.server_file_table.item(row,16).text()[1:-1].replace("\"","")
         self.uploader = self.server_file_table.item(row,7).text()
