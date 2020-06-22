@@ -36,7 +36,7 @@ The repository has the following directories:
   * Cognito -  provides access to user managment and authentication
   * S3 - Amazon's simple storage service that's used to keep the data
 
-*static-web:* the data and files needed to host on a static web service. For this project, the static site is hosted at https://www.engr.colostate.edu/~jdaily/CANLogger/
+*static-web:* the data and files needed to host on a static web service. For this project, the static site is hosted at https://systemscyber.github.io/CAN-Logger-3
 
 
 The docs folder contains schematics, gerber files, and Altium Designer source files. 
