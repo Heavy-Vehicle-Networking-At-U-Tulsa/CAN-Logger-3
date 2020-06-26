@@ -1,3 +1,5 @@
+//#define USE_ENCRYPTION 1
+
 /*
  * NMFTA CAN Logger 3 Project   
  * 
@@ -55,9 +57,14 @@
 #include <EEPROM.h> // Use this to keep track of the file names 
 #include <FastCRC.h> // Add the CRC to include in the record to validate CAN frame messages.
 #include <sha256.h> // Keep track of the file hash as it is created.
-#include "CryptoAccel.h" //Makes the cryptographic acceleration hardware arduino compatible
+
+#ifdef USE_ENCRYPTION
+  #include "CryptoAccel.h" //Makes the cryptographic acceleration hardware arduino compatible
+#endif
+
 #include <SparkFun_ATECCX08a_Arduino_Library.h> //Click here to get the library: http://librarymanager/All#SparkFun_ATECCX08a
 #include <i2c_t3.h> //use to communicate with the ATECC608a cryptographic coprocessor
+
 
 ATECCX08A atecc;
 //Get access to a hardware based CRC32 
@@ -309,6 +316,7 @@ void iv_key_RNG(){
     
 }
 
+#ifdef USE_ENCRYPTION
 //AES CBC funtion
 void aes_cbc_encrypt(const unsigned char *data, unsigned char *cipher_text){
   //Data length should be a multiple of 16 bytes
@@ -321,7 +329,7 @@ void aes_cbc_encrypt(const unsigned char *data, unsigned char *cipher_text){
     memcpy(&cipher_text[j],out,16);
   }
 }
-
+#endif
 
 /*
  * The load_buffer() function maps the received CAN message into
@@ -456,13 +464,18 @@ void check_buffer(){
 }
 
 void write_to_sd(){
-    if (encrypted_logging){
+#ifdef USE_ENCRYPTION
+if (encrypted_logging){
+
       aes_cbc_encrypt(data_buffer,cipher_text);//Encrypt 512-byte buffer 
       digitalWrite(BLUE_LED,HIGH);
     }
     else {
       memcpy(&cipher_text[0],&data_buffer[0],BUFFER_SIZE);
     }
+#else
+    memcpy(&cipher_text[0],&data_buffer[0],BUFFER_SIZE);
+#endif
     if (BUFFER_SIZE != binFile.write(cipher_text, BUFFER_SIZE)) {
       Serial.println("write failed");
       sdErrorFlash(); 
@@ -725,11 +738,6 @@ void close_binFile(){
     uint32_t file_size = binFile.size();
 
     binFile.close();
-    Serial.println();
-    Serial.print("Time to close bin file (us):");
-    Serial.println(micro_timer);
-    micro_timer=0;
-    
     EEPROM.put(EEPROM_FILE_ID_ADDR,current_file); //Write current file name to EEPROM
 
     char size_char[11];
@@ -739,16 +747,9 @@ void close_binFile(){
     sha256Instance->update(cipher_text,BUFFER_SIZE);
     sha256Instance->final(hash);
     delete sha256Instance;
-    memcpy(&filesize_hash_contents[10],&hash,32);
-    
+    memcpy(&filesize_hash_contents[10],&hash,32);    
     EEPROM.put(EEPROM_filesize_hash_ADDR, filesize_hash_contents); //Write important metada of current file for backup in case of power loss
 
-    Serial.print("Total closing time with backup data already stored in EEPROM (us):");
-    Serial.println(micro_timer);
-    //digitalWrite(BLUE_LED,HIGH);
-
-
-    micro_timer = 0;
     Serial.print(",SIZE:");
     memcpy(&data_file_contents[data_file_index],",SIZE:",6);
     data_file_index+=6;
@@ -760,7 +761,6 @@ void close_binFile(){
     
     write_final_meta_data();
 
-    //delay(10);
     file_open = false;
     //Initialize the CAN channels with autobaud.
     RXCount0 = 0;
@@ -1043,7 +1043,7 @@ void setup(void) {
     Serial.print(hex_digit);
   }
   Serial.println();
-  
+#ifdef USE_ENCRYPTION  
   for (int i = 0; i < sizeof(init_vector); i++)  init_vector[i] = iv_and_key[i];
   mmcau_aes_set_key(aeskey, 128, keysched);//Set key
   memcpy(out,init_vector,16); //Load IV
@@ -1069,7 +1069,7 @@ void setup(void) {
     Serial.print(hex_digit);
   }
   Serial.println();
-  
+ #endif 
  
 
   Can0.setReportErrors(true);
@@ -1133,8 +1133,8 @@ void setup(void) {
   EEPROM.get(EEPROM_DEVICE_ID_ADDR,logger_name);
   if (!isFileNameValid(logger_name)) strcpy(logger_name, "__"); 
   // Uncomment the following 2 lines to reset name
-  //strcpy(logger_name, "U01");
-  //EEPROM.put(EEPROM_DEVICE_ID_ADDR,logger_name);
+//  strcpy(logger_name, "U09");
+//  EEPROM.put(EEPROM_DEVICE_ID_ADDR,logger_name);
   
   EEPROM.get(EEPROM_FILE_ID_ADDR,current_file);
   if (!isFileNameValid(current_file)) strcpy(current_file, "000");
@@ -1143,8 +1143,8 @@ void setup(void) {
   EEPROM.get(EEPROM_BRAND_NAME_ADDR,brand_name);
   if (!isFileNameValid(brand_name)) strcpy(brand_name, "CSU"); 
   // Uncomment the following 2 lines to reset the brand name
-  //strcpy(brand_name, "CS");
-  //EEPROM.put(EEPROM_BRAND_NAME_ADDR,brand_name);
+//  strcpy(brand_name, "CS");
+//  EEPROM.put(EEPROM_BRAND_NAME_ADDR,brand_name);
 
   Serial.println("Done.");
   
@@ -1322,11 +1322,14 @@ void rx_message_routine(uint32_t RXCount){
 void loop(void) {
   //Monitor voltage, close file if drop below ~9V
   //Raw voltage analog range is 0-149 for 0-12.2V
-  if (voltage_timer >1000) {
   RAW_voltage = analogRead(RAW_input);
-  //Serial.printf("Voltage = %i\n",RAW_voltage);
-  if (RAW_voltage < RAW_voltage_threshold) close_binFile(); // analog of 110 ~ 9V raw voltage
-  voltage_timer =0;
+  if (RAW_voltage < RAW_voltage_threshold) {
+    close_binFile(); // analog of 110 ~ 9V raw voltage
+    Serial.println("Closed file due to loss of power.");
+  }
+  if (voltage_timer > 1000) {
+    //Serial.printf("Voltage = %i\n",RAW_voltage);
+    voltage_timer =0;
   }
   
   // monitor the CAN channels
@@ -1450,8 +1453,10 @@ void loop(void) {
     else if (commandString.equalsIgnoreCase("STREAM OFF")) turn_streaming_off();
     else if (commandString.equalsIgnoreCase("REQUEST ON")) turn_requests_on();
     else if (commandString.equalsIgnoreCase("REQUEST OFF"))turn_requests_off();
+#ifdef USE_ENCRYPTION
     else if (commandString.equalsIgnoreCase("ENCRYPT ON")) turn_encrypted_logging_on();
     else if (commandString.equalsIgnoreCase("ENCRYPT OFF"))turn_encrypted_logging_off();
+#endif
     else if (commandString.startsWith("BIN ")){
       char current_file_name[13];
       commandString.remove(0,4);
