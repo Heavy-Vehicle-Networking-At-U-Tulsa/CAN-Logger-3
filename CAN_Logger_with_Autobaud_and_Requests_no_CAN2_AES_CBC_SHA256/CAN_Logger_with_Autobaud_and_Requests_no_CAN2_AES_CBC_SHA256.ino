@@ -8,14 +8,12 @@
  * for more details.
  * 
  * Written By Dr. Jeremy S. Daily
- * The University of Tulsa
- * Department of Mechanical Engineering
- * 
- * 18 Nov 2018
- * 
+ * Colorado State University
+ * Department of Systems Engineering
+ *  
  * Released under the MIT License
  *
- * Copyright (c) 2019        Jeremy S. Daily, Duy Van
+ * Copyright (c) 2020        Jeremy S. Daily, Duy Van
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -41,7 +39,8 @@
  * Samples are logged at regular intervals.  The maximum logging rate
  * depends on the quality of your SD card. 
  * 
- * Much of this sketch was inspired by the examples from https://github.com/greiman/SdFs
+ * Much of this sketch was inspired by the examples from 
+ * https://github.com/greiman/SdFs
  * 
  * The program makes use of the SdFs library
  * 
@@ -76,16 +75,13 @@ char data_file_contents[570]; //Size of MetaData file
 uint16_t data_file_index = 0;
 char filesize_hash_contents[42]; //10 bytes for filesize and 32 bytes for bin hash
 
-#define VOLTAGE_THRESHOLD 80
-
 // define the number of rounds with AES encryption.
 #define AES_128_NROUNDS 10
 
 // EEPROM memory addresses for creating file names
 // The Address 0 and 1 are used for baud rates
 #define EEPROM_DEVICE_ID_ADDR     4  // 5, 6, 7=00
-#define EEPROM_FILE_ID_ADDR       8  // 9, 10, 11 ==00
-#define EEPROM_BRAND_NAME_ADDR    12 //13 and 14 ==00
+#define EEPROM_FILE_ID_ADDR       12  // 9, 10, 11 ==00
 #define EEPROM_metadata_ADDR      16 
 #define EEPROM_filesize_hash_ADDR (EEPROM_metadata_ADDR + sizeof(data_file_contents))
 #define ENCRYPTED_LOGGING_ADDR 2049 // A byte representing the last state of encryption.
@@ -96,9 +92,6 @@ char filesize_hash_contents[42]; //10 bytes for filesize and 32 bytes for bin ha
 
 // Setup a limit to turn off the CAN controller after this many messages.
 #define ERROR_COUNT_LIMIT 5000
-
-// setup the length for a serial command buffer to control the logger 2.
-
 
 // Set up the SD Card object
 SdFs sd;
@@ -142,8 +135,9 @@ char iv_string[16];
 elapsedMicros microsecondsPerSecond;
 elapsedMicros micro_timer;
 elapsedMicros voltage_timer;
+
 // Get a uniqueName for the Logger File
-char logger_name[4];
+char logger_name[6];
 bool file_open;
 char current_file_name[13];
 char data_file_name[13];
@@ -312,8 +306,6 @@ unsigned char encrypted_aeskey[16];
 void iv_key_RNG(){ 
     atecc.updateRandom32Bytes();
     memcpy(&iv_and_key[0],&atecc.random32Bytes[0],sizeof(iv_and_key));
-    //memset(iv_and_key,0,sizeof(iv_and_key));
-    
 }
 
 #ifdef USE_ENCRYPTION
@@ -351,8 +343,6 @@ void load_buffer(){
           hash_ciphertext[z]=cipher_text[hash_counter*SHA_UPDATE_SIZE + z];
         }
         sha256Instance->update(hash_ciphertext,SHA_UPDATE_SIZE);
-//        Serial.print("Time to hash 64 bytes (us):");
-//        Serial.println(micro_timer);
         hash_counter++;
       }
     }
@@ -404,12 +394,8 @@ void check_buffer(){
     //Create a file if it is not open yet
     if (!file_open) {
       open_binFile();
-      //Serial.print("Opened File ");
-      //Serial.println(current_file_name);
-    }
-  
+    }  
     uint32_t start_micros = micros();
-    
     // Write the beginning of each line in the 512 byte block
     sprintf(prefix,"CAN2");
     memcpy(&data_buffer[0], &prefix[0], 4);
@@ -435,10 +421,7 @@ void check_buffer(){
     uint32_t checksum = CRC32.crc32(data_buffer, CRC32_BUFFER_LOC);
     memcpy(&data_buffer[CRC32_BUFFER_LOC], &checksum, 4);
 
-    //Encrypt data_buffer with AES CBC
-
     write_to_sd();
-
     
     buffer_counter++;
     if (buffer_counter >= 1843200) {//When file size reaches 900 MB, start a new one
@@ -447,15 +430,12 @@ void check_buffer(){
       buffer_counter = 0;
       myDoubleClickFunction(); 
     }
-    
-
     //Reset the record
     memset(&data_buffer,0xFF,BUFFER_SIZE);
     
     //Record write times for the previous frame, since the existing frame was just written
     uint32_t elapsed_micros = micros() - start_micros;
     memcpy(&data_buffer[505], &elapsed_micros, 3);
-    //Serial.println(elapsed_micros);
     
     //Toggle LED to show SD card writing
     YELLOW_LED_state = !YELLOW_LED_state;
@@ -465,8 +445,7 @@ void check_buffer(){
 
 void write_to_sd(){
 #ifdef USE_ENCRYPTION
-if (encrypted_logging){
-
+    if (encrypted_logging){
       aes_cbc_encrypt(data_buffer,cipher_text);//Encrypt 512-byte buffer 
       digitalWrite(BLUE_LED,HIGH);
     }
@@ -483,13 +462,11 @@ if (encrypted_logging){
     //If the first buffer is sent, set first_buffer_sent to true and hash counter to 0 for load_buffer()
     else{
       first_buffer_sent = true;
-      hash_counter = 0;
-      
+      hash_counter = 0;  
     }
 }
 
 void print_hex(){
-
   char line[BUFFER_SIZE];
   if (!binFile.isOpen()) close_binFile();
   if (sd.exists(current_file_name)){
@@ -503,8 +480,6 @@ void print_hex(){
       Serial.println();
     }
     binFile.close();
-    
-
   }
   else
   {
@@ -535,8 +510,8 @@ void stream_binary(char stream_file_name[]){
     { 
       Serial.write(line,BUFFER_SIZE);
       if (Serial.available() >= 2){
-      commandString = Serial.readStringUntil('\n');
-      if (commandString.equalsIgnoreCase("OFF")) break;
+        commandString = Serial.readStringUntil('\n');
+        if (commandString.equalsIgnoreCase("OFF")) break;
       }
     }
     digitalWrite(YELLOW_LED,LOW);
@@ -613,8 +588,6 @@ void send_Can2_message(CAN_message_t &txmsg){
     TXTimer2 = 0;
   }  
 }
-
-
 
  * Routines for the FlexCAN Controller on Can0 and Can1
  * Can0 is usually J1939
@@ -701,7 +674,7 @@ void open_binFile(){
   //Increase file name by 1
   get_current_file();
   
-  sprintf(current_file_name,"%s%s%s.bin",brand_name,logger_name,current_file);
+  sprintf(current_file_name,"%s%s.bin",logger_name,current_file);
   if (!binFile.open(current_file_name, O_RDWR | O_CREAT)) {
     YELLOW_LED_fast_blink_state == true;
     Serial.println("Error opening ");
@@ -753,8 +726,6 @@ void close_binFile(){
     Serial.print(",SIZE:");
     memcpy(&data_file_contents[data_file_index],",SIZE:",6);
     data_file_index+=6;
-    //char size_char[11];
-    //sprintf(size_char,"%10d",file_size);
     Serial.print(size_char);
     memcpy(&data_file_contents[data_file_index],&size_char,10);
     data_file_index+=10;
@@ -772,10 +743,8 @@ void close_binFile(){
     //Set first buffer sent back to false when closing file
     first_buffer_sent = false;
     RAW_voltage_threshold = 0.5 * analogRead(RAW_input);
-    Serial.printf("RAW_voltage_threshold = %i\n", RAW_voltage_threshold);
-  
+    Serial.printf("RAW_voltage_threshold = %i\n", RAW_voltage_threshold);  
   }
-  
 }
 
 void get_prev_metadata(){
@@ -845,7 +814,6 @@ void get_prev_metadata(){
   memset(data_file_contents,0,sizeof(data_file_contents));
   data_file_index=0;
 }
-
 
 void led_blink_routines(){
   if (GREEN_LED_fast_blink_state)
@@ -968,7 +936,9 @@ void myLongPressFunction(){
 
 
 void setup(void) {
+#ifdef USE_ENCRYPTION 
   EEPROM.get(ENCRYPTED_LOGGING_ADDR,encrypted_logging);
+#endif
   Wire.begin(I2C_MASTER, 0x00, I2C_PINS_18_19, I2C_PULLUP_EXT, 100000);
   if (atecc.begin() == true)
   {
@@ -979,13 +949,10 @@ void setup(void) {
     Serial.println("Device not found. Check wiring.");
     while (1); // stall out forever
   }
-  atecc.readConfigZone(false); // produces a serial number
-  
-  atecc.generatePublicKey(0,true);
-  
+  atecc.readConfigZone(false); // produces a serial number 
+  atecc.generatePublicKey(0,false); // Calculate the public key
   Serial.println("Starting CAN logger.");
 
-  
   first_buffer_sent = false;
  
   commandString.reserve(256);
@@ -1001,10 +968,9 @@ void setup(void) {
   digitalWrite(SILENT_2,LOW);
 
   // Setup chip select pin for the MCP2515
- // pinMode(CS_CAN, OUTPUT);
-  //digitalWrite(CS_CAN,HIGH);
+  // pinMode(CS_CAN, OUTPUT);
+  // digitalWrite(CS_CAN,HIGH);
   
-  // put your setup code here, to run once:
   pinMode(GREEN_LED, OUTPUT);
   pinMode(YELLOW_LED, OUTPUT);
   pinMode(RED_LED, OUTPUT);
@@ -1030,19 +996,11 @@ void setup(void) {
   button.setClickTicks(500);
   
   // Select the CAN on J1939 Pins F and G
-  //pinMode(CAN_SWITCH,OUTPUT);
-  //digitalWrite(CAN_SWITCH,LOWstream on);
+  // pinMode(CAN_SWITCH,OUTPUT);
+  // digitalWrite(CAN_SWITCH,LOW);
 
   iv_key_RNG();
-  
-  Serial.print("Plain AES Session Key: ");
-  for (int i = 0; i < sizeof(aeskey); i++)  {
-    aeskey[i] = iv_and_key[16+i]; 
-    char hex_digit[3];
-    sprintf(hex_digit,"%02X",aeskey[i]);
-    Serial.print(hex_digit);
-  }
-  Serial.println();
+ 
 #ifdef USE_ENCRYPTION  
   for (int i = 0; i < sizeof(init_vector); i++)  init_vector[i] = iv_and_key[i];
   mmcau_aes_set_key(aeskey, 128, keysched);//Set key
@@ -1069,8 +1027,7 @@ void setup(void) {
     Serial.print(hex_digit);
   }
   Serial.println();
- #endif 
- 
+#endif  
 
   Can0.setReportErrors(true);
   Can1.setReportErrors(true);
@@ -1131,21 +1088,13 @@ void setup(void) {
 
   Serial.print("Reading from EEPROM... ");
   EEPROM.get(EEPROM_DEVICE_ID_ADDR,logger_name);
-  if (!isFileNameValid(logger_name)) strcpy(logger_name, "__"); 
-  // Uncomment the following 2 lines to reset name
-//  strcpy(logger_name, "U09");
-//  EEPROM.put(EEPROM_DEVICE_ID_ADDR,logger_name);
+  if (!isFileNameValid(logger_name)) strcpy(logger_name, "CSU__"); 
+  // Set the DEVICE ID with the ID command
   
   EEPROM.get(EEPROM_FILE_ID_ADDR,current_file);
   if (!isFileNameValid(current_file)) strcpy(current_file, "000");
   // reset the counter with the count command
   
-  EEPROM.get(EEPROM_BRAND_NAME_ADDR,brand_name);
-  if (!isFileNameValid(brand_name)) strcpy(brand_name, "CSU"); 
-  // Uncomment the following 2 lines to reset the brand name
-//  strcpy(brand_name, "CS");
-//  EEPROM.put(EEPROM_BRAND_NAME_ADDR,brand_name);
-
   Serial.println("Done.");
   
   sprintf(file_name_prefix,"%s%s",brand_name,logger_name);
@@ -1474,15 +1423,15 @@ void loop(void) {
     }
     else if (commandString.startsWith("ID ")){
       commandString.remove(0,3);
-      if (commandString.length() == 3){
+      if (commandString.length() == 5){
         commandString.toUpperCase();
-        commandString.toCharArray(logger_name,4);
+        commandString.toCharArray(logger_name,sizeof(logger_name));
         EEPROM.put(EEPROM_DEVICE_ID_ADDR,logger_name);
         Serial.print("Set Device ID to ");
         Serial.println(logger_name);
       }
       else {
-        Serial.println("Improper ID Length");
+        Serial.println("Improper ID Length. Expecting 5 characters (CSUXX).");
       }
     }
     else if (commandString.startsWith("COUNT")){
