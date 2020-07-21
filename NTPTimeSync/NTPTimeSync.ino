@@ -42,11 +42,12 @@
 //please enter your sensitive data in the Secret tab/arduino_secrets.h
 char ssid[] = SECRET_SSID;                   // Network SSID (name)
 char pass[] = SECRET_PASS;                   // Network password
+int retries = 5;                             // Number of times to attempt connecting before abandoning and moving on
 
 // Define constants
 int status = WL_IDLE_STATUS;                 // Initialize WiFi status to "idle"
 unsigned int localPort = 2390;               // UDP port 
-//IPAddress timeServerIP(129, 6, 15, 28);
+//IPAddress timeServerIP(129, 6, 15, 28);    // Removing hardcoded IP address to take advantage of NTP server pool
 IPAddress timeServerIP;                      // Initialize IP address for NTP server
 const char* ntpServerName = "time.nist.gov"; // Obtain time from time.nist.gov server
 const int NTP_PACKET_SIZE = 48;              // NTP time stamp is the first 48 bytes of the message
@@ -154,29 +155,50 @@ void setup() {
   }
     
   // Attempt to connect to WiFi network:
-  while ( status != WL_CONNECTED){
+   while ( status != WL_CONNECTED && retries > 0){
     status = WiFi.begin(ssid, pass);
     Serial.print("Attempting to connect to WPA SSID: ");
     Serial.println(ssid); 
     delay(3000);
+    retries --;
+    Serial.print("Retries remaining: ");
+    Serial.println(retries);
   }
 
   // Print connection status
-  Serial.print("Connected to network: ");
-  Serial.println(WiFi.SSID());
-  Serial.println("Starting UDP");
-  Udp.begin(localPort);
-  Serial.print("Local port: ");
-  Serial.println(localPort);
-
-  // Sync to local clock to NTP
-  setSyncProvider(getTimestamp);
-  if (timeStatus()!= timeSet) {
-    Serial.println("Unable to sync with the RTC");
+  if (status == WL_CONNECTED){
+    Serial.print("Connected to network: ");
+    Serial.println(WiFi.SSID());
+    Serial.println("Starting UDP");
+    Udp.begin(localPort);
+    Serial.print("Local port: ");
+    Serial.println(localPort);
+  }
+  else{
+    Serial.print("Unable to connect to network: ");
+    Serial.println(WiFi.SSID());
+  }
+    
+  // Sync to local clock to NTP if WiFi is connected otherwise uses onboard Real Time Clock (RTC)
+  if (status == WL_CONNECTED){
+    setSyncProvider(getTimestamp);
+    if (timeStatus()!= timeSet) {
+      Serial.println("Unable to sync with the RTC");
+    }
+    else {
+      Serial.println("RTC has set the system time");
+    }
   }
   else {
-    Serial.println("RTC has set the system time");
+    setSyncProvider(getTeensy3Time);
+    if (timeStatus()!= timeSet) {
+      Serial.println("Unable to sync with the RTC");
+    }
+    else {
+      Serial.println("RTC has set the system time");
+    }
   }
+  // Maintain clock synchronized at 1 second interval
   setSyncInterval(1);
 }
 
