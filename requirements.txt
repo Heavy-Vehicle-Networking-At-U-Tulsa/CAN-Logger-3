@@ -1,0 +1,4 @@
+PyQt5==5.15.0
+ecdsa==0.15
+pyjwkest==1.4.2
+pyserial==3.4
