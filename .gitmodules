@@ -1,0 +1,3 @@
+[submodule "hello-word"]
+	path = hello-word
+	url = https://github.com/chris-lute/hello-word
