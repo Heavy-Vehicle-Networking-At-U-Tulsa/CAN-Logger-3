@@ -1,0 +1,50 @@
+Comment,Description,Designator,Footprint,Quantity,Supplier Part Number 1,Supplier Stock 1,Supplier Unit Price 1,Manufacturer,PartNumber,Supplier 1
+,,,,,,,,,,
+Yellow,LED YELLOW DIFFUSED 0805 SMD,D4,0805 Polarized,1,475-2560-1-ND,107964,0.28,OSRAM Opto Semiconductors Inc.,LY R976-PS-36,Digi-Key
+Vehicle Interface Cable Connector,"Receptacle Assembly, 15 Position, Right Angle",J1,DSUB1.385-2H15,1,609-1498-ND,2491,2.3,Amphenol FCI,D15S33E4GV00LF,Digi-Key
+Varistor 42V,VARISTOR CAP FEEDTHRU 18V 0805,"TVS1, TVS2, TVS3",Transfeed,3,478-2485-1-ND,19004,0.6,AVX,V2F118A400Y2EDP,Digi-Key
+UX60SC-MB-5S8,"USB - mini B USB 2.0 Receptacle Connector 5 Position Surface Mount, Right Angle; Through Hole",USB1,USB Mini UX60S,1,H11589CT-ND,6604,1.08,Hirose,UX60SC-MB-5S8,Digi-Key
+SN75HVD08DR,IC RS485 TXRX 3/5V 8-SOIC,U4,SOIC-SN8_N,1,296-37893-1-ND,11120,3.86,Texas Instruments,SN75HVD08DR,Digi-Key
+SMA6J,TVS DIODE 20VWM 36.8VC SMA,Z1,SMA,1,SMA6J24CA-TPMSCT-ND,7849,0.4,Micro Commercial Co,SMA6J24CA-TP,Digi-Key
+SLP3,"Light Pipe Single Clear Rigid Round with Domed Top, 3mm Board Mount, Press Fit, Right Angle","LP1, LP2, LP3, LP4",PCBComponent_1,4,492-2517-ND,1481,0.64,Bivar Inc.,SLP3-150-250-R,Digi-Key
+Red,Red 633nm LED Indication - Discrete 2V 0805 (2012 Metric),D2,0805 Polarized,1,475-1278-1-ND,139410,0.28,OSRAM Opto Semiconductors Inc.,LS R976-NR-1,Digi-Key
+PTS830,Tactile Switch SPST-NO Top Actuated Surface Mount,SW1,Switch PTS830,1,CKN10587CT-ND,44555,0.62,C & K Components,PTS830GM140 SMTR LFS,Digi-Key
+PTC RESTTBLE 0.75A,PTC RESTTBLE 0.75A 33V CHIP 1812,PTC1,1812,1,507-1765-1-ND,101787,0.12,Bel Fuse Inc.,0ZCG0075BF2B,Digi-Key
+PB400,"Pushbutton Switch DPST-NO Standard Through Hole, Right Angle","SW20, SW21",PB400,2,EG5548-ND,1826,1.82,E-Switch,PB400OAQR1BLK,Digi-Key
+OKI-78SR,5V DC/DC Converter (7805 replacement),U1,OKI-78SR,1,811-2692-ND,22881,4.3,Murata Power Solutions Inc.,OKI-78SR-5/1.5-W36H-C,Digi-Key
+NUD3124,IC INDCT LOAD DRVR AUTO SOT23,Q1,SOT23_N,1,NUD3124LT1GOSCT-ND,50095,0.4,ON Semiconductor,NUD3124LT1G,Digi-Key
+NCV7356D1R2G,"Single Wire CAN Transceiver, 5 to 27 V, 8-Pin SOIC, Pb-Free, Tube",U2,ONSC-SOIC-8-751-07_V,1,NCV7356D1R2GOSCT-ND,7250,1.75,On Semiconductor,NCV7356D1R2G,Digi-Key
+NCP1117LPST33,Linear Voltage Regulator IC Positive Fixed Output 3.3V 1A SOT-223,U13,SOT-223,1,NCP1117LPST33T3GOSCT-ND,17953,0.45,On Semiconductor,NCP1117LPST33T3G,Digi-Key
+MOCD207R2M,Optoisolator Transistor Output 2500Vrms 2 Channel 8-SO Tall,U12,SOIC-8,1,MOCD207R2MCT-ND,66456,0.98,Fairchild/ON Semiconductor,MOCD207R2M,Digi-Key
+MKL02Z32VFG4,"32 Bit Microcontroller, Kinetis L Series Ultra Low Power, ARM Cortex-M0+, 48 MHz, 32 KB, 4 KB, 16",U16,*QFN50P300X300X65-17N,1,IC_MKL02Z32_QFN16,,,PJRC,Pre Programmed MKL02Z32VFG4,PJRC
+MK66FX1M0VMD18,"Kinetis K66: 180MHz Cortex-M4F MCU, 1.2MB Flash, 256KB SRAM, 2xUSB, Ethernet, 144-MAPBGA",U6,*BGA144C100P12X12_1300X1300X170_MK66FX1M0VMD18(Primary),1,568-13335-ND,1703,17.65,NXP USA Inc.,MK66FX1M0VMD18,Digi-Key
+MCP2558,Microchip CAN FD Transceiver with Silent Mode,"U5, U8, U9",TDFN,3,MCP2558FDT-H/MNYCT-ND,43,0.81,"Microchip Technology, Microchip",MCP2558FDT-H/MNY,Digi-Key
+MCP2517FD,CANbus Controller CAN 2.0 SPI Interface 14-VDFN (4.5x3),U14,SOP14,1,MCP2517FDT-H/JHACT-ND,482,2.31,Microchip Technology,MCP2517FDT-H/JHA,Digi-Key
+MCP2003A-E/SN,"LIN J2602 Transceiver, 8-Pin SOIC, Extended Temperature, Tape and Reel",U7,SOIC-SN8_N,1,MCP2003A-E/SN-ND,2540,0.82,Microchip Technology,MCP2003A-E/SN,Digi-Key
+JTAG/SWD,"Connector Header Surface Mount 10 position 0.050 (1.27mm)""",JTAG/SWD,JTAG 10-pin Header,1,1175-1735-ND,25349,0.73,CNC Tech,3221-10-0300-00,Digi-Key
+Green,Green 570nm LED Indication - Discrete 2.2V 0805 (2012 Metric),D1,0805 Polarized,1,475-1410-1-ND,325251,0.26,OSRAM Opto Semiconductors Inc.,LG R971-KN-1,Digi-Key
+EE2-5NU,General Purpose Relay DPDT (2 Form C) Surface Mount,K1,RELAY - EE2,1,399-11017-1-ND,5989,1.9,KEMET,EE2-5NU-L,Digi-Key
+ECS-400-10-37B-CKY-TR,,Y1,*XTAL_ECS-160-9-37-CKM-TR,1,XC3069CT-ND,22,0.5,ECS Inc.,ECS-400-10-37B-CKY-TR,Digi-Key
+Diode,Default Diode,"D7, D8, D9, D10, D11",CST2C,5,CCS15S30L3FCT-ND,14285,0.36,Toshiba Semiconductor and Storage,CCS15S30L3FCT-ND,Digi-Key
+CR1225,"Lithium Battery Non-Rechargeable (Primary) 3V Coin, 12.5mm",Batt1,Battery Clip - CR1225,1,BAT-HLD-012-SMT-ND,3790,0.29,Linx,BAT-HLD-012-SMT,Digi-Key
+Blue,Blue 470nm LED Indication - Discrete 3.3V 0805 (2012 Metric),D6,0805 Polarized,1,516-1437-1-ND,21867,0.91,Broadcom Limited,HSMN-C170,Digi-Key
+ATML-ATWINC1500-MR210PA-28,SMARTCONNECT ATWINC1500B-MU-T MO,U11,ATML-ATWINC1500-MR210PA-28_V,1,ATWINC1510-MR210PB1140-ND,20,8.32,Microchip Technologies,ATWINC1510-MR210PB1140,Digi-Key
+ATECC608A-MAHDA-T,Authentication Chip 8-UDFN _2x3_,U15,SON50P200X300X60-9N,1,ATECC608A-MAHDA-TCT-ND,14753,0.77,Microchip Technology,ATECC608A-MAHDA-T,Digi-Key
+ACURA107-HF,Diode Schottky 1000V 1A Surface Mount DO-214AC (SMA),"D3, D5",SMA with A and K,2,641-1884-1-ND,1457,0.39,Comchip Technology,ACURA107-HF,Digi-Key
+503182-1852,MICRO SD NORMAL ULTRALOWPRO8CKTE,SD1,*MOLEX_503182-1852_503182-1852(Primary),1,WM12834CT-ND,7940,2.45,Molex,5031821852,Digi-Key
+470µF,"470µF 16V Aluminum Electrolytic Capacitors Radial, Can - SMD  5000 Hrs @ 105°C","C2, C28",Elec. Cap - G,2,PCE4191TR-ND,5500,,Panasonic Electronic Components,EEE-HA1C471P,Digi-Key
+330,"330 Ohms ±1% 0.1W, 1/10W Chip Resistor 0603 (1608 Metric) Automotive AEC-Q200, High Voltage Thick Film","R3, R19, R23, R31",603,4,RHM330AYCT-ND,7932,0.14,Rohm Semiconductor,KTR03EZPF3300,Digi-Key
+100uF,"Aluminum Electrolytic Capacitors Radial, Can - SMD 5000 Hrs @ 105°C",C3,Elec. Cap - G,1,P19732CT-ND,477,0.78,Panasonic Electronic Components,EEE-HC1H101P,Digi-Key
+100k,"100 kOhms ±1% 0.1W, 1/10W Chip Resistor 0603 (1608 Metric) Automotive AEC-Q200, High Voltage Thick Film","R8, R9, R11, R12, R13, R14, R15, R16, R17, R25, R27, R32, R33",603,13,RHM100KAYCT-ND,57044,0.129,Rohm Semiconductor,KTR03EZPF1003,Digi-Key
+100,"100 Ohms ±1% 0.1W, 1/10W Chip Resistor 0603 (1608 Metric) Automotive AEC-Q200, High Voltage Thick Film",R2,603,1,RHM100AYCT-ND,126915,0.14,Rohm Semiconductor,KTR03EZPF1000,Digi-Key
+74AHCT1G14,IC SCHMIT-TRIGG INV GATE SOT353,U3,SOT-353,1,74AHCT1G14SE-7DICT-ND,16669,0.25,Diodes Incorporated,74AHCT1G14SE-7,Digi-Key
+47,"±1% 0.1W, 1/10W Chip Resistor 0603 (1608 Metric) Automotive AEC-Q200, High Voltage Thick Film","R5, R6, R29, R30",603,4,RHM47AYCT-ND,5993,0.14,Rohm Semiconductor,KTR03EZPF47R0,Digi-Key
+32.768 KHz,Canned Oscillator,X1,XTAL 2-pad Small,1,XC2190CT-ND,34615,0.69,ECS Inc.,ECS-.327-CDX-1128,Digi-Key
+22uF,22µF ±20% 25V Ceramic Capacitor X5R 1206 (3216 Metric),C12,1206,1,490-12451-1-ND,323351,1.1,Murata Electronics North America,GRT31CR61E226ME01L,Digi-Key
+16pF,"16pF ±5% 50V Ceramic Capacitor C0G, NP0 0603 (1608 Metric)","C14, C15",603,2,311-3964-1-ND,7129,0.1,Yageo,CC0603JRNPO9BN160,Digi-Key
+16MHz,"16MHz ±30ppm Crystal 18pF 80 Ohms 4-SMD, No Lead",Y3,XTAL 4 pad,1,XC2866CT-ND,604,0.69,ECS Inc.,XC2866CT-ND,Digi-Key
+10k,"10 kOhms ±1% 0.1W, 1/10W Chip Resistor 0603 (1608 Metric) Automotive AEC-Q200, High Voltage Thick Film","R18, R20, R24, R28, R34",603,5,RHM10.0KAYCT-ND,15100,0.14,Rohm Semiconductor,KTR03EZPF1002,Digi-Key
+4.7k,"4.7 kOhms ±1% 0.1W, 1/10W Chip Resistor 0603 (1608 Metric) Automotive AEC-Q200, High Voltage Thick Film","R1, R4, R7, R10, R21, R22",603,6,RHM4.7KAYCT-ND,5001,0.14,Rohm Semiconductor,KTR03EZPF4701,Digi-Key
+2.2uF,2.2µF ±10% 6.3V Ceramic Capacitor X5R 0603 (1608 Metric),"C10, C16",603,2,587-3386-1-ND,33409,0.11,Taiyo Yuden,JMK107BJ225KAHT,Digi-Key
+1k,1 kOhms @ 100MHz 1 Power Line Ferrite Bead 0603 (1608 Metric) 1A 200mOhm,"L1, L5, L6",603,3,490-17349-1-ND,19491,0.1,Murata,BLM18KG102SN1D,Digi-Key
+0.1uF,CAP CER 0.1UF 50V X7R 0603,"C1, C4, C5, C6, C7, C8, C9, C11, C13, C17, C18, C19, C20, C21, C22, C23, C24, C25",603,18,399-6856-1-ND,690000,0.096,KEMET,C0603C104K5RACAUTO,Digi-Key
