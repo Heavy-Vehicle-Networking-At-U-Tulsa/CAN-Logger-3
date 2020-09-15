@@ -40,10 +40,13 @@ def verify_meta_data_text(raw_line):
         if caclulated_sha != text_sha.decode('ascii'):
             logger.debug("SHA 256 Digests in text file doesn't match the calculated value.")
             return False
+        try:
+            public_key_bytes = bytearray.fromhex(meta_data_bytes.split(b'PUB:')[1][:128].decode('ascii'))
+            signature_hex = bytearray.fromhex(sha_signature[:128].decode('ascii'))
+        except ValueError:
+            public_key_bytes=b''
+            signature_hex=b''
 
-        public_key_bytes = bytearray.fromhex(meta_data_bytes.split(b'PUB:')[1][:128].decode('ascii'))
-        signature_hex = bytearray.fromhex(sha_signature[:128].decode('ascii'))
-        
         try:
             vk = VerifyingKey.from_string(bytes(public_key_bytes), curve=NIST256p)
         except:
